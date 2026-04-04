@@ -11,7 +11,12 @@ celery_app = Celery(
     "giggle",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.trigger_polling"],
+    include=[
+        "app.tasks.trigger_polling",
+        "app.tasks.weekly_renewal",
+        "app.tasks.cascade_recovery",
+        "app.tasks.aqi_polling",
+    ],
 )
 
 celery_app.conf.update(
@@ -35,7 +40,7 @@ celery_app.conf.update(
             "schedule": 43200.0,
         },
         "aqi-polling-hourly": {
-            "task": "app.tasks.aqi_polling.poll_aqi",
+            "task": "app.tasks.aqi_polling.poll_aqi_zones",
             "schedule": 3600.0,
         },
     },
