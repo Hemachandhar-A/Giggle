@@ -68,7 +68,12 @@ def initiate_upi_payout(vpa: str, amount_rupees: float, claim_id: str) -> dict[s
 
     try:
         client = _build_client()
-        response = client.payout.create(payload)
+        if hasattr(client, "payout") and hasattr(client.payout, "create"):
+            response = client.payout.create(payload)
+        elif hasattr(client, "payouts") and hasattr(client.payouts, "create"):
+            response = client.payouts.create(payload)
+        else:
+            response = client.post("/payouts", payload)
         return {
             "success": True,
             "payout_id": response.get("id"),
