@@ -67,7 +67,7 @@ def _sample_flood_tier(rng: np.random.Generator) -> str:
 
 
 def _sample_season(rng: np.random.Generator) -> str:
-    return str(_weighted_choice(rng, ["NE_monsoon", "SW_monsoon", "heat", "dry_season"], [0.35, 0.25, 0.20, 0.20]))
+    return str(_weighted_choice(rng, ["NE_monsoon", "SW_monsoon", "heat", "dry"], [0.35, 0.25, 0.20, 0.20]))
 
 
 def _sample_platform(rng: np.random.Generator) -> str:
@@ -93,11 +93,11 @@ def _build_row(rng: np.random.Generator) -> dict[str, Any]:
     weekly_premium = compute_weekly_premium_target(
         avg_heavy_rain_days_yr=historical_claim_rate_zone * 365.0,
         flood_tier_numeric=flood_tier_numeric,
-        season=season_flag,
+        season_flag=season_flag,
     )
     weekly_premium = float(np.clip(weekly_premium * float(rng.lognormal(mean=0.0, sigma=0.05)), WEEKLY_PREMIUM_FLOOR, WEEKLY_PREMIUM_CEILING))
 
-    return {
+    row = {
         "flood_hazard_zone_tier": flood_hazard_zone_tier,
         "zone_cluster_id": zone_cluster_id,
         "platform": platform,
@@ -111,6 +111,17 @@ def _build_row(rng: np.random.Generator) -> dict[str, Any]:
         "historical_claim_rate_zone": round(historical_claim_rate_zone, 4),
         "weekly_premium": round(weekly_premium, 2),
     }
+
+    if enrollment_week < 5:
+        row["zone_cluster_id"] = np.nan
+        row["delivery_baseline_30d"] = np.nan
+        row["income_baseline_weekly"] = np.nan
+        row["open_meteo_7d_precip_probability"] = np.nan
+        row["activity_consistency_score"] = np.nan
+        row["tenure_discount_factor"] = np.nan
+        row["historical_claim_rate_zone"] = np.nan
+
+    return row
 
 
 def generate_synthetic_training_data(num_rows: int = DEFAULT_NUM_ROWS, seed: int = RANDOM_SEED) -> pd.DataFrame:
@@ -132,7 +143,7 @@ def generate_synthetic_training_data(num_rows: int = DEFAULT_NUM_ROWS, seed: int
             "weekly_premium",
         ]
     ]
-    frame["zone_cluster_id"] = frame["zone_cluster_id"].astype(int)
+    frame["zone_cluster_id"] = frame["zone_cluster_id"].astype("Int64")
     frame["enrollment_week"] = frame["enrollment_week"].astype(int)
     return frame
 

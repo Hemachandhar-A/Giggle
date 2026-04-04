@@ -1,6 +1,8 @@
 import os
 import logging
 import joblib
+import json
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -27,18 +29,52 @@ _lgbm_feature_list = _load_artifact("lgbm_m2_feature_list.joblib")
 _kmeans_m5 = _load_artifact("kmeans_m5.joblib")
 
 SHAP_TAMIL_TEMPLATES = {
-    "flood_hazard_zone_tier": "வெள்ள அபாய மண்டலம் உங்கள் பிரீமியத்தை பாதிக்கிறது",
-    "season_flag": "தற்போதைய பருவமழை காலம் அதிக ஆபத்தை குறிக்கிறது",
-    "open_meteo_7d_precip_probability": "அடுத்த வாரம் மழை முன்னறிவிப்பு உள்ளது",
-    "activity_consistency_score": "உங்கள் டெலிவரி செயல்பாடு மாறுபாடு காணப்படுகிறது",
-    "historical_claim_rate_zone": "உங்கள் மண்டலத்தில் அதிக கோரிக்கை வரலாறு உள்ளது",
-    "zone_cluster_id": "உங்கள் மண்டல ஆபத்து நிலை பிரீமியத்தை பாதிக்கிறது",
-    "delivery_baseline_30d": "கடந்த மாத டெலிவரி எண்ணிக்கை கணக்கில் எடுக்கப்பட்டது",
-    "income_baseline_weekly": "உங்கள் வாராந்திர வருமானம் கணக்கில் எடுக்கப்பட்டது",
-    "tenure_discount_factor": "நீண்ட கால பயன்பாடு தள்ளுபடி வழங்கப்படுகிறது",
-    "platform": "உங்கள் டெலிவரி தளம் கணக்கில் எடுக்கப்பட்டது",
-    "enrollment_week": "பதிவு வாரம் பிரீமியத்தை பாதிக்கிறது"
+    "open_meteo_7d_precip_probability": "உங்கள் மண்டலத்தில் மழை முன்னறிவிப்பு (+₹{amount})",
+    "flood_hazard_zone_tier": "வெள்ள அபாய மண்டலம் (+₹{amount})",
+    "activity_consistency_score": "{weeks} வார சுத்தமான பதிவு (-₹{amount})",
+    "tenure_discount_factor": "விசுவாசமான வாடிக்கையாளர் தள்ளுபடி (-₹{amount})",
 }
+
+
+def _load_hindi_templates() -> dict:
+    path = os.path.join(os.path.dirname(__file__), "hi.json")
+    if not os.path.exists(path):
+        logger.warning("Hindi template file not found: %s. Falling back to Tamil.", path)
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        if isinstance(data, dict):
+            return data
+    except Exception as e:
+        logger.warning("Failed to load Hindi templates from %s: %s", path, e)
+    return {}
+
+
+SHAP_HINDI_TEMPLATES = _load_hindi_templates()
+
+
+def compute_activity_consistency_score(weekly_delivery_counts: list[float]) -> float:
+    """
+    M7 — Activity Consistency Scorer.
+    Input: list of weekly delivery counts (up to last 8 weeks),
+           ordered oldest to newest.
+    Returns: normalized std dev score 0.0-1.0.
+             Returns 0.5 (default) if fewer than 8 weeks provided.
+    """
+    if len(weekly_delivery_counts) < 8:
+        return 0.5
+
+    counts = weekly_delivery_counts[-8:]
+    std = float(np.std(counts))
+    mean = float(np.mean(counts))
+
+    if mean == 0:
+        return 0.5
+
+    cv = std / mean
+    score = max(0.0, min(1.0, 1.0 - cv))
+    return round(score, 4)
 
 def _predict_glm(flood_hazard_zone_tier, season_flag, platform) -> float:
     if _glm_bundle is None:
@@ -63,7 +99,7 @@ def _predict_glm(flood_hazard_zone_tier, season_flag, platform) -> float:
         return 75.0
 
 
-def _predict_lgbm(features: dict) -> tuple[float, list[str]]:
+def _predict_lgbm(features: dict, template_map: dict) -> tuple[float, list[str]]:
     if _lgbm_model is None or _lgbm_feature_list is None:
         return (75.0, ["உங்கள் பிரீமியம் கணக்கிடப்பட்டது"] * 3)
     
@@ -88,7 +124,7 @@ def _predict_lgbm(features: dict) -> tuple[float, list[str]]:
         shap_top3 = []
         for idx in top3_idx:
             feat_name = _lgbm_feature_list[idx]
-            shap_top3.append(SHAP_TAMIL_TEMPLATES.get(feat_name, "உங்கள் பிரீமியம் கணக்கிடப்பட்டது"))
+            shap_top3.append(template_map.get(feat_name, "உங்கள் பிரீமியம் கணக்கிடப்பட்டது"))
             
         return (raw_premium, shap_top3)
     except Exception as e:
@@ -105,14 +141,16 @@ def get_zone_cluster_for_pincode_ml(pincode_lat: float, pincode_lon: float) -> i
     if _kmeans_m5 is None:
         logger.warning("kmeans_m5.joblib not loaded. Returning default cluster 1.")
         return 1
-    try:
-        kmeans = _kmeans_m5["model"]
-        scaler = _kmeans_m5["scaler"]
-        logger.info("M5 model loaded and available.")
-        return 1
-    except Exception as e:
-        logger.exception("Error accessing kmeans_m5 bundle")
-        return 1
+
+    kmeans = _kmeans_m5["kmeans"]
+    scaler = _kmeans_m5["scaler"]
+
+    features = np.array([[float(pincode_lat), float(pincode_lon)]], dtype=float)
+    scaled = scaler.transform(features)
+    predicted_cluster = int(kmeans.predict(scaled)[0]) + 1
+
+    # Keep output within expected M5 cluster id range.
+    return int(max(1, min(20, predicted_cluster)))
 
 
 def calculate_premium(
@@ -129,7 +167,14 @@ def calculate_premium(
     historical_claim_rate_zone: float,
     language: str
 ) -> dict:
-    # Compute recency_multiplier
+    normalized_language = (language or "").strip().lower()
+    if normalized_language in ("hi", "hindi"):
+        template_map = SHAP_HINDI_TEMPLATES or SHAP_TAMIL_TEMPLATES
+    elif normalized_language in ("ta", "tamil"):
+        template_map = SHAP_TAMIL_TEMPLATES
+    else:
+        template_map = SHAP_TAMIL_TEMPLATES
+
     if enrollment_week <= 2:
         recency_multiplier = 1.5
     elif enrollment_week <= 4:
@@ -137,10 +182,9 @@ def calculate_premium(
     else:
         recency_multiplier = 1.0
 
-    # Routing
     if enrollment_week < 5:
         raw_premium = _predict_glm(flood_hazard_zone_tier, season_flag, platform)
-        model_used = "glm" if _glm_bundle is not None else "stub"
+        model_used = "glm"
         shap_top3 = []
     else:
         features = {
@@ -156,20 +200,16 @@ def calculate_premium(
             "tenure_discount_factor": tenure_discount_factor,
             "historical_claim_rate_zone": historical_claim_rate_zone
         }
-        raw_premium, shap_top3 = _predict_lgbm(features)
-        model_used = "lgbm" if _lgbm_model is not None else "stub"
+        raw_premium, shap_top3 = _predict_lgbm(features, template_map)
+        model_used = "lgbm"
 
-    # Adjust premium
     adjusted = raw_premium * recency_multiplier
 
-    # Apply affordability cap
     affordability_cap = income_baseline_weekly * 0.025
     capped = min(adjusted, affordability_cap)
 
-    # Floor and ceiling bounds
     final = max(49.0, min(capped, 149.0))
 
-    # Flag
     affordability_capped = (capped < adjusted)
 
     return {

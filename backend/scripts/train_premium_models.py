@@ -104,7 +104,11 @@ def train_m1_glm_cold_start(frame: pd.DataFrame, artifact_path: Path) -> dict[st
     glm_result = glm_model.fit()
 
     predictions = glm_result.predict(x_valid_const)
-    rmse = float(np.sqrt(mean_squared_error(y_valid, predictions)))
+    m1_rmse = float(np.sqrt(mean_squared_error(y_valid, predictions)))
+    if m1_rmse >= 15:
+        raise ValueError(
+            f"M1 RMSE {m1_rmse:.2f} exceeds threshold of ₹15. Do not save artifacts. Fix synthetic data or model params."
+        )
 
     artifact = {
         "model_name": "glm_cold_start",
@@ -121,13 +125,13 @@ def train_m1_glm_cold_start(frame: pd.DataFrame, artifact_path: Path) -> dict[st
         len(subset),
         len(x_train),
         len(x_valid),
-        rmse,
+        m1_rmse,
         artifact_path,
     )
-    print(f"M1 RMSE: {rmse:.4f}")
+    print(f"M1 RMSE: {m1_rmse:.4f}")
 
     return {
-        "rmse": rmse,
+        "rmse": m1_rmse,
         "train_rows": int(len(x_train)),
         "valid_rows": int(len(x_valid)),
         "artifact_path": str(artifact_path),
@@ -181,10 +185,14 @@ def train_m2_lgbm_weekly(
     )
 
     predictions = model.predict(x_valid)
-    rmse = float(np.sqrt(mean_squared_error(y_valid, predictions)))
+    m2_rmse = float(np.sqrt(mean_squared_error(y_valid, predictions)))
     negative_predictions = int((predictions < 0).sum())
     if negative_predictions > 0:
         raise ValueError(f"M2 produced negative predictions: count={negative_predictions}")
+    if m2_rmse >= 12:
+        raise ValueError(
+            f"M2 RMSE {m2_rmse:.2f} exceeds threshold of ₹12. Do not save artifacts. Fix synthetic data or model params."
+        )
 
     explainer = shap.TreeExplainer(model)
     sample_row = x_valid.head(1)
@@ -204,13 +212,13 @@ def train_m2_lgbm_weekly(
         len(subset),
         len(x_train),
         len(x_valid),
-        rmse,
+        m2_rmse,
         model_artifact_path,
     )
-    print(f"M2 RMSE: {rmse:.4f}")
+    print(f"M2 RMSE: {m2_rmse:.4f}")
 
     return {
-        "rmse": rmse,
+        "rmse": m2_rmse,
         "train_rows": int(len(x_train)),
         "valid_rows": int(len(x_valid)),
         "negative_predictions": negative_predictions,

@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 
 from app.api.premium import router
+import app.api.premium as premium_api
 from app.core.database import get_db
 
 test_app = FastAPI()
@@ -22,6 +23,29 @@ def test_calculate_valid_worker(mock_db):
     test_app.dependency_overrides[get_db] = lambda: mock_db
     try:
         worker_id = str(uuid4())
+
+        original_build_feature_vector = premium_api._build_feature_vector
+        original_calculate_premium = premium_api.calculate_premium
+        premium_api._build_feature_vector = MagicMock(
+            return_value={
+                "season_flag": "NE_monsoon",
+                "delivery_baseline_30d": 120.0,
+                "income_baseline_weekly": 4500.0,
+                "open_meteo_7d_precip_probability": 0.4,
+                "activity_consistency_score": 0.75,
+                "historical_claim_rate_zone": 0.08,
+                "tenure_discount_factor": 0.92,
+            }
+        )
+        premium_api.calculate_premium = MagicMock(
+            return_value={
+                "premium_amount": 89.0,
+                "model_used": "glm",
+                "recency_multiplier": 1.0,
+                "shap_top3": ["வெள்ள அபாய மண்டலம் (+₹12.0)"],
+                "affordability_capped": False,
+            }
+        )
 
         mock_worker = MagicMock()
         mock_worker.id = worker_id
@@ -49,6 +73,8 @@ def test_calculate_valid_worker(mock_db):
         assert "tamil_explanation" in data
         assert data["model_used"] == "glm"
     finally:
+        premium_api._build_feature_vector = original_build_feature_vector
+        premium_api.calculate_premium = original_calculate_premium
         test_app.dependency_overrides.clear()
 
 
@@ -154,6 +180,29 @@ def test_renew_valid_worker(mock_db):
     try:
         worker_id = str(uuid4())
 
+        original_build_feature_vector = premium_api._build_feature_vector
+        original_calculate_premium = premium_api.calculate_premium
+        premium_api._build_feature_vector = MagicMock(
+            return_value={
+                "season_flag": "NE_monsoon",
+                "delivery_baseline_30d": 130.0,
+                "income_baseline_weekly": 4800.0,
+                "open_meteo_7d_precip_probability": 0.45,
+                "activity_consistency_score": 0.8,
+                "historical_claim_rate_zone": 0.07,
+                "tenure_discount_factor": 0.9,
+            }
+        )
+        premium_api.calculate_premium = MagicMock(
+            return_value={
+                "premium_amount": 95.0,
+                "model_used": "lgbm",
+                "recency_multiplier": 1.0,
+                "shap_top3": ["வெள்ள அபாய மண்டலம் (+₹15.0)"],
+                "affordability_capped": False,
+            }
+        )
+
         mock_worker = MagicMock()
         mock_worker.id = worker_id
         mock_worker.enrollment_week = 6
@@ -172,11 +221,17 @@ def test_renew_valid_worker(mock_db):
         mock_query.filter.return_value = mock_filter
         mock_filter.first.side_effect = [mock_worker, mock_policy]
 
-        response = client.post("/api/v1/premium/renew", json={"worker_id": worker_id})
+        response = client.post(
+            "/api/v1/premium/renew",
+            json={"worker_id": worker_id},
+            headers={"X-Admin-Key": "gigshield-admin"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert "premium_amount" in data
         assert data["model_used"] == "lgbm"
         assert "tamil_explanation" in data
     finally:
+        premium_api._build_feature_vector = original_build_feature_vector
+        premium_api.calculate_premium = original_calculate_premium
         test_app.dependency_overrides.clear()
