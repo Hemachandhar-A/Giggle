@@ -1,0 +1,6 @@
+{
+  "open_meteo_7d_precip_probability": "आपके क्षेत्र में बारिश का पूर्वानुमान (+₹{amount})",
+  "flood_hazard_zone_tier": "बाढ़ जोखिम क्षेत्र (+₹{amount})",
+  "activity_consistency_score": "{weeks} सप्ताह का स्वच्छ रिकॉर्ड (-₹{amount})",
+  "tenure_discount_factor": "वफादार ग्राहक छूट (-₹{amount})"
+}
