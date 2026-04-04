@@ -231,6 +231,20 @@ def register_worker(
     # Step 5: Zone cluster lookup
     zone_cluster_id = get_zone_cluster_for_pincode(payload.pincode)
 
+    existing_partner = (
+        db.query(WorkerProfile)
+        .filter(
+            WorkerProfile.partner_id == payload.partner_id,
+            WorkerProfile.platform == payload.platform,
+        )
+        .first()
+    )
+    if existing_partner:
+        raise HTTPException(
+            status_code=409,
+            detail="This platform partner ID is already registered",
+        )
+
     # Step 6: Create worker profile
     # WorkerProfile.enrollment_date is the authoritative source for waiting-period
     # and days_until_claim_eligible calculations in policy endpoints.
@@ -265,6 +279,11 @@ def register_worker(
     )
     db.add(policy)
     db.flush()
+
+    # Persist worker + policy before calling the premium endpoint from a separate DB session.
+    db.commit()
+    db.refresh(worker)
+    db.refresh(policy)
 
     # Step 8: Internal premium service call with fallback
     premium_amount = Decimal("75.00")

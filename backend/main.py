@@ -12,8 +12,10 @@ except ModuleNotFoundError:  # pragma: no cover - optional test dependency
     redis = None
 
 from app.api.fraud import router as fraud_router
+from app.api.admin import router as admin_router
 from app.api.onboarding import router as onboarding_router
 from app.api.policy import router as policy_router
+from app.api.premium import router as premium_router
 from app.core.config import settings
 from app.core.database import engine
 from app.fraud import scorer as fraud_scorer
@@ -37,8 +39,6 @@ def _build_placeholder_router(prefix: str, tag: str) -> APIRouter:
     return router
 
 
-admin_router = _build_placeholder_router("/api/v1/admin", "admin")
-premium_router = _build_placeholder_router("/api/v1/premium", "premium")
 trigger_router = _build_placeholder_router("/api/v1/trigger", "trigger")
 claims_router = _build_placeholder_router("/api/v1/claims", "claims")
 payout_router = _build_placeholder_router("/api/v1/payout", "payout")
@@ -47,7 +47,7 @@ app.include_router(onboarding_router)
 app.include_router(policy_router)
 app.include_router(fraud_router)
 app.include_router(admin_router)
-app.include_router(premium_router)
+app.include_router(premium_router, prefix="/api/v1/premium")
 app.include_router(trigger_router)
 app.include_router(claims_router)
 app.include_router(payout_router)
