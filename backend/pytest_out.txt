@@ -1,0 +1,30 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.13.2, pytest-8.2.2, pluggy-1.6.0 -- C:\Users\us\AppData\Local\Programs\Python\Python313\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\us\OneDrive\Desktop\Giggle\backend
+plugins: anyio-4.8.0, asyncio-0.23.8, cov-5.0.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 6 items
+
+tests/test_premium/test_api.py::test_calculate_valid_worker PASSED       [ 16%]
+tests/test_premium/test_api.py::test_calculate_unknown_worker PASSED     [ 33%]
+tests/test_premium/test_api.py::test_calculate_no_policy PASSED          [ 50%]
+tests/test_premium/test_api.py::test_history_valid_worker PASSED         [ 66%]
+tests/test_premium/test_api.py::test_history_unknown_worker PASSED       [ 83%]
+tests/test_premium/test_api.py::test_renew_valid_worker PASSED           [100%]
+
+============================== warnings summary ===============================
+..\..\..\..\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\formparsers.py:12
+  C:\Users\us\AppData\Local\Programs\Python\Python313\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+..\..\..\..\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\_internal\_config.py:295
+  C:\Users\us\AppData\Local\Programs\Python\Python313\Lib\site-packages\pydantic\_internal\_config.py:295: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.10/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+..\..\..\..\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py:1051
+  C:\Users\us\AppData\Local\Programs\Python\Python313\Lib\site-packages\fastapi\applications.py:1051: PytestCollectionWarning: cannot collect 'test_app' because it is not a function.
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 6 passed, 3 warnings in 1.07s ========================
