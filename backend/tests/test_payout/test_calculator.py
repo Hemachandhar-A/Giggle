@@ -215,3 +215,139 @@ def test_compute_payout_marks_waiting_period_ineligible(monkeypatch):
     assert result["eligible_for_payout"] is False
     assert result["total_payout"] == 0.0
     fake_db.execute.assert_not_called()
+
+
+def test_compute_payout_validation_errors(monkeypatch):
+    fixed_now = datetime(2026, 4, 4, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(calculator, "_current_time", lambda: fixed_now)
+
+    with pytest.raises(ValueError):
+        calculator.compute_payout(
+            worker=None,  # type: ignore[arg-type]
+            policy=_make_policy(income_baseline_weekly=1000.0),
+            deliveries_completed_today=1,
+            disruption_duration_hours=1.0,
+            cascade_day=1,
+            trigger_type="heavy_rain",
+            db=MagicMock(),
+        )
+
+    with pytest.raises(ValueError):
+        calculator.compute_payout(
+            worker=_make_worker(enrollment_date=fixed_now - timedelta(days=40)),
+            policy=None,  # type: ignore[arg-type]
+            deliveries_completed_today=1,
+            disruption_duration_hours=1.0,
+            cascade_day=1,
+            trigger_type="heavy_rain",
+            db=MagicMock(),
+        )
+
+    with pytest.raises(ValueError):
+        calculator.compute_payout(
+            worker=_make_worker(enrollment_date=fixed_now - timedelta(days=40)),
+            policy=_make_policy(income_baseline_weekly=1000.0),
+            deliveries_completed_today=-1,
+            disruption_duration_hours=1.0,
+            cascade_day=1,
+            trigger_type="heavy_rain",
+            db=MagicMock(),
+        )
+
+
+def test_compute_payout_applies_peak_multiplier_when_rain_and_ratio_high(monkeypatch):
+    fixed_now = datetime(2026, 4, 4, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(calculator, "_current_time", lambda: fixed_now)
+    monkeypatch.setattr(calculator, "_zone_rate_mid", lambda *_: 20.0)
+    monkeypatch.setattr(calculator, "_avg_hourly_deliveries", lambda **_: 10.0)
+    monkeypatch.setattr(calculator, "_declared_per_order_rate", lambda **_: 1.0)
+    monkeypatch.setattr(
+        calculator,
+        "_compute_slab_delta",
+        lambda **_: {
+            "next_threshold": 0.0,
+            "next_bonus_amount": 0.0,
+            "probability": 0.0,
+            "matched_days": 0.0,
+            "reached_days": 0.0,
+            "fallback_used": 0.0,
+            "slab_delta": 0.0,
+        },
+    )
+    monkeypatch.setattr(
+        calculator,
+        "_monthly_proximity",
+        lambda **_: {
+            "monthly_proximity": 0.0,
+            "cumulative_monthly_deliveries": 0.0,
+            "deliveries_needed": 0.0,
+            "remaining_days": 0.0,
+            "typical_daily_rate": 0.0,
+            "probability_would_hit_200": 0.0,
+            "activated": 0.0,
+        },
+    )
+    monkeypatch.setattr(calculator, "_zone_order_volume_ratio", lambda **_: 1.21)
+
+    result = calculator.compute_payout(
+        worker=_make_worker(enrollment_date=fixed_now - timedelta(days=40)),
+        policy=_make_policy(income_baseline_weekly=10000.0),
+        deliveries_completed_today=0,
+        disruption_duration_hours=1.0,
+        cascade_day=1,
+        trigger_type="heavy_rain",
+        db=MagicMock(),
+    )
+
+    assert result["peak_multiplier_applied"] is True
+    assert result["peak_context_multiplier"] == 1.2
+    assert result["total_payout"] == 12.0
+
+
+def test_compute_payout_uses_history_baseline_when_policy_baseline_missing(monkeypatch):
+    fixed_now = datetime(2026, 4, 4, 10, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(calculator, "_current_time", lambda: fixed_now)
+    monkeypatch.setattr(calculator, "_zone_rate_mid", lambda *_: 20.0)
+    monkeypatch.setattr(calculator, "_avg_hourly_deliveries", lambda **_: 10.0)
+    monkeypatch.setattr(calculator, "_declared_per_order_rate", lambda **_: 1.0)
+    monkeypatch.setattr(
+        calculator,
+        "_compute_slab_delta",
+        lambda **_: {
+            "next_threshold": 0.0,
+            "next_bonus_amount": 0.0,
+            "probability": 0.0,
+            "matched_days": 0.0,
+            "reached_days": 0.0,
+            "fallback_used": 0.0,
+            "slab_delta": 0.0,
+        },
+    )
+    monkeypatch.setattr(
+        calculator,
+        "_monthly_proximity",
+        lambda **_: {
+            "monthly_proximity": 0.0,
+            "cumulative_monthly_deliveries": 0.0,
+            "deliveries_needed": 0.0,
+            "remaining_days": 0.0,
+            "typical_daily_rate": 0.0,
+            "probability_would_hit_200": 0.0,
+            "activated": 0.0,
+        },
+    )
+    monkeypatch.setattr(calculator, "_zone_order_volume_ratio", lambda **_: 1.0)
+    monkeypatch.setattr(calculator, "_weekly_baseline_from_history", lambda **_: 8.0)
+
+    result = calculator.compute_payout(
+        worker=_make_worker(enrollment_date=fixed_now - timedelta(days=40)),
+        policy=_make_policy(income_baseline_weekly=None),
+        deliveries_completed_today=0,
+        disruption_duration_hours=1.0,
+        cascade_day=1,
+        trigger_type="heavy_rain",
+        db=MagicMock(),
+    )
+
+    assert result["weekly_baseline_cap"] == 8.0
+    assert result["total_payout"] == 8.0

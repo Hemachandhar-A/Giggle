@@ -321,3 +321,77 @@ def test_aqi_polling_calls_poll_aqi_all_zones(monkeypatch):
 
     assert len(captured["payload"]) == 2
     assert result == {"zones_polled": 2, "zones_triggered": 1}
+
+
+def test_aqi_polling_helpers_handle_invalid_values():
+    assert aqi_polling._to_float(None, default=1.5) == 1.5
+    assert aqi_polling._to_float("x", default=2.5) == 2.5
+    assert aqi_polling._to_int(None, default=7) == 7
+    assert aqi_polling._to_int("x", default=9) == 9
+
+
+def test_weekly_renewal_get_current_season_all_buckets():
+    assert weekly_renewal.get_current_season(datetime(2026, 7, 1, tzinfo=timezone.utc)) == "SW_monsoon"
+    assert weekly_renewal.get_current_season(datetime(2026, 11, 1, tzinfo=timezone.utc)) == "NE_monsoon"
+    assert weekly_renewal.get_current_season(datetime(2026, 4, 1, tzinfo=timezone.utc)) == "heat"
+    assert weekly_renewal.get_current_season(datetime(2026, 1, 1, tzinfo=timezone.utc)) == "dry"
+
+
+def test_weekly_renewal_next_sunday_midnight_rolls_forward_week():
+    sunday_noon = datetime(2026, 4, 5, 12, 0, tzinfo=timezone.utc)
+    out = weekly_renewal._next_sunday_midnight(sunday_noon)
+    assert out.weekday() == 6
+    assert out.hour == 0 and out.minute == 0
+    assert out.date() == datetime(2026, 4, 12, tzinfo=timezone.utc).date()
+
+
+def test_weekly_renewal_helpers_coerce_with_defaults():
+    assert weekly_renewal._to_float(None, default=3.2) == 3.2
+    assert weekly_renewal._to_float("bad", default=4.2) == 4.2
+    assert weekly_renewal._to_int(None, default=5) == 5
+    assert weekly_renewal._to_int("bad", default=6) == 6
+
+
+def test_weekly_renewal_estimate_income_zero_when_no_delivery_baseline(monkeypatch):
+    fake_db = FakeDB()
+    worker = SimpleNamespace(id="worker", zone_cluster_id=1)
+    monkeypatch.setattr(weekly_renewal, "_estimate_delivery_baseline_30d", lambda *_, **__: 0.0)
+    value = weekly_renewal._estimate_income_baseline_weekly(fake_db, worker, datetime.now(timezone.utc))
+    assert value == 0.0
+
+
+def test_weekly_renewal_estimate_income_uses_default_zone_rate_when_missing(monkeypatch):
+    fake_db = FakeDB()
+    worker = SimpleNamespace(id="worker", zone_cluster_id=99)
+    monkeypatch.setattr(weekly_renewal, "_estimate_delivery_baseline_30d", lambda *_, **__: 300.0)
+    value = weekly_renewal._estimate_income_baseline_weekly(fake_db, worker, datetime.now(timezone.utc))
+    assert value == pytest.approx((300.0 / 30.0) * 18.0 * 7.0)
+
+
+def test_aqi_polling_get_db_session_supports_generator(monkeypatch):
+    sentinel_db = object()
+
+    def _gen():
+        yield sentinel_db
+
+    monkeypatch.setattr(aqi_polling, "get_db", _gen)
+
+    db, db_gen = aqi_polling._get_db_session()
+    assert db is sentinel_db
+    assert db_gen is not None
+
+
+def test_aqi_polling_get_db_session_supports_direct_session(monkeypatch):
+    sentinel_db = object()
+    monkeypatch.setattr(aqi_polling, "get_db", lambda: sentinel_db)
+
+    db, db_gen = aqi_polling._get_db_session()
+    assert db is sentinel_db
+    assert db_gen is None
+
+
+def test_aqi_polling_run_async_executes_coroutine():
+    async def _coro():
+        return {"ok": True}
+
+    assert aqi_polling._run_async(_coro()) == {"ok": True}
