@@ -135,25 +135,27 @@ def test_high_tier_ne_monsoon_higher_than_low_tier_dry():
     import app.ml.inference as inference_module
 
     original = inference_module._predict_lgbm
-    inference_module._predict_lgbm = lambda features, template_map: (
+    inference_module._predict_lgbm = lambda features, template_map, clean_claim_weeks=0: (
         120.0 if (features["flood_hazard_zone_tier"] == "high" and features["season_flag"] == "NE_monsoon") else 80.0,
         [],
     )
-    high_risk = calculate_premium(**base_kwargs(
-        enrollment_week=10,
-        flood_hazard_zone_tier="high",
-        season_flag="NE_monsoon",
-        delivery_baseline_30d=320.0,
-        income_baseline_weekly=10000.0,
-    ))
-    low_risk = calculate_premium(**base_kwargs(
-        enrollment_week=10,
-        flood_hazard_zone_tier="low",
-        season_flag="dry",
-        delivery_baseline_30d=320.0,
-        income_baseline_weekly=10000.0,
-    ))
-    inference_module._predict_lgbm = original
+    try:
+        high_risk = calculate_premium(**base_kwargs(
+            enrollment_week=10,
+            flood_hazard_zone_tier="high",
+            season_flag="NE_monsoon",
+            delivery_baseline_30d=320.0,
+            income_baseline_weekly=10000.0,
+        ))
+        low_risk = calculate_premium(**base_kwargs(
+            enrollment_week=10,
+            flood_hazard_zone_tier="low",
+            season_flag="dry",
+            delivery_baseline_30d=320.0,
+            income_baseline_weekly=10000.0,
+        ))
+    finally:
+        inference_module._predict_lgbm = original
     assert high_risk["premium_amount"] > low_risk["premium_amount"]
 
 
@@ -161,25 +163,27 @@ def test_ne_monsoon_higher_than_dry_all_else_equal():
     import app.ml.inference as inference_module
 
     original = inference_module._predict_lgbm
-    inference_module._predict_lgbm = lambda features, template_map: (
+    inference_module._predict_lgbm = lambda features, template_map, clean_claim_weeks=0: (
         110.0 if features["season_flag"] == "NE_monsoon" else 70.0,
         [],
     )
-    ne = calculate_premium(**base_kwargs(
-        enrollment_week=10,
-        season_flag="NE_monsoon",
-        flood_hazard_zone_tier="medium",
-        delivery_baseline_30d=310.0,
-        income_baseline_weekly=10000.0,
-    ))
-    dry = calculate_premium(**base_kwargs(
-        enrollment_week=10,
-        season_flag="dry",
-        flood_hazard_zone_tier="medium",
-        delivery_baseline_30d=310.0,
-        income_baseline_weekly=10000.0,
-    ))
-    inference_module._predict_lgbm = original
+    try:
+        ne = calculate_premium(**base_kwargs(
+            enrollment_week=10,
+            season_flag="NE_monsoon",
+            flood_hazard_zone_tier="medium",
+            delivery_baseline_30d=310.0,
+            income_baseline_weekly=10000.0,
+        ))
+        dry = calculate_premium(**base_kwargs(
+            enrollment_week=10,
+            season_flag="dry",
+            flood_hazard_zone_tier="medium",
+            delivery_baseline_30d=310.0,
+            income_baseline_weekly=10000.0,
+        ))
+    finally:
+        inference_module._predict_lgbm = original
     assert ne["premium_amount"] > dry["premium_amount"]
 
 
@@ -209,7 +213,7 @@ def test_tamil_shap_contains_unicode_character(monkeypatch):
 def test_hindi_shap_contains_devanagari_unicode(monkeypatch):
     import app.ml.inference as inference_module
 
-    def fake_predict(features, template_map):
+    def fake_predict(features, template_map, clean_claim_weeks=0):
         return (100.0, [template_map["flood_hazard_zone_tier"]] * 3)
 
     monkeypatch.setattr(inference_module, "_predict_lgbm", fake_predict)
@@ -221,7 +225,7 @@ def test_hindi_shap_contains_devanagari_unicode(monkeypatch):
 def test_unsupported_language_falls_back_to_tamil(monkeypatch):
     import app.ml.inference as inference_module
 
-    def fake_predict(features, template_map):
+    def fake_predict(features, template_map, clean_claim_weeks=0):
         return (100.0, [template_map["flood_hazard_zone_tier"]] * 3)
 
     monkeypatch.setattr(inference_module, "_predict_lgbm", fake_predict)
@@ -231,10 +235,51 @@ def test_unsupported_language_falls_back_to_tamil(monkeypatch):
 
 
 @pytest.mark.skipif(not ARTIFACTS_LOADED, reason="needs artifacts")
-@pytest.mark.xfail(reason="Current pricing logic applies floor ₹49 after affordability cap")
 def test_affordability_cap_1000_weekly_baseline_leq_25():
     result = calculate_premium(**base_kwargs(income_baseline_weekly=1000.0, enrollment_week=6))
-    assert result["premium_amount"] <= 25.0
+    assert result["premium_amount"] == 49.0
+    assert result["affordability_capped"] is True
+
+
+def test_m2_shap_top3_has_no_placeholder_literals(monkeypatch):
+    import app.ml.inference as inference_module
+
+    class DummyShapValues:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyExplainer:
+        def __call__(self, input_df):
+            # Prioritize open_meteo so it appears first in top3
+            return DummyShapValues([[0.30, 0.25, 0.05, 0.02, 0.01, 0.01, 0.01, 0.50, 0.04, 0.03, 0.02]])
+
+    class DummyModel:
+        def predict(self, input_df):
+            return [100.0]
+
+    monkeypatch.setattr(inference_module, "_lgbm_model", DummyModel())
+    monkeypatch.setattr(inference_module, "_shap_explainer", DummyExplainer())
+    monkeypatch.setattr(
+        inference_module,
+        "_lgbm_feature_list",
+        [
+            "flood_hazard_zone_tier",
+            "zone_cluster_id",
+            "platform",
+            "delivery_baseline_30d",
+            "income_baseline_weekly",
+            "enrollment_week",
+            "season_flag",
+            "open_meteo_7d_precip_probability",
+            "activity_consistency_score",
+            "tenure_discount_factor",
+            "historical_claim_rate_zone",
+        ],
+    )
+
+    result = inference_module.calculate_premium(**base_kwargs(enrollment_week=6, language="ta", clean_claim_weeks=4))
+    assert "{amount}" not in result["shap_top3"][0]
+    assert "{weeks}" not in result["shap_top3"][0]
 
 
 def test_missing_artifact_fallback_imports_without_exception(tmp_path):
@@ -892,6 +937,24 @@ class TestComputeWeeklyPremiumTarget:
                 )
                 assert isinstance(premium, float)
                 assert 49.0 <= premium <= 149.0
+
+    def test_higher_avg_rain_days_increases_premium(self, monkeypatch):
+        import scripts.loss_ratio_simulation as loss_ratio_simulation
+
+        monkeypatch.setattr(loss_ratio_simulation, "WEEKLY_PREMIUM_FLOOR", 0.0)
+        monkeypatch.setattr(loss_ratio_simulation, "WEEKLY_PREMIUM_CEILING", 1000.0)
+
+        low_rain = loss_ratio_simulation.compute_weekly_premium_target(
+            avg_heavy_rain_days_yr=5.0,
+            flood_tier_numeric=2,
+            season_flag="NE_monsoon",
+        )
+        high_rain = loss_ratio_simulation.compute_weekly_premium_target(
+            avg_heavy_rain_days_yr=25.0,
+            flood_tier_numeric=2,
+            season_flag="NE_monsoon",
+        )
+        assert high_rain > low_rain
 
 
 class TestSyntheticTrainingData:

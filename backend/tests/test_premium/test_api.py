@@ -70,7 +70,6 @@ def test_calculate_valid_worker(mock_db):
         data = response.json()
         assert "premium_amount" in data
         assert "model_used" in data
-        assert "tamil_explanation" in data
         assert data["model_used"] == "glm"
     finally:
         premium_api._build_feature_vector = original_build_feature_vector
@@ -230,7 +229,6 @@ def test_renew_valid_worker(mock_db):
         data = response.json()
         assert "premium_amount" in data
         assert data["model_used"] == "lgbm"
-        assert "tamil_explanation" in data
     finally:
         premium_api._build_feature_vector = original_build_feature_vector
         premium_api.calculate_premium = original_calculate_premium

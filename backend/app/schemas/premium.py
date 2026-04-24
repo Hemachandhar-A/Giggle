@@ -12,7 +12,6 @@ class PremiumCalculateResponse(BaseModel):
     recency_multiplier: float
     shap_top3: List[str]
     affordability_capped: bool
-    tamil_explanation: str
 
 class PremiumHistoryItem(BaseModel):
     week_number: int

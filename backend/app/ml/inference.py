@@ -99,7 +99,7 @@ def _predict_glm(flood_hazard_zone_tier, season_flag, platform) -> float:
         return 75.0
 
 
-def _predict_lgbm(features: dict, template_map: dict) -> tuple[float, list[str]]:
+def _predict_lgbm(features: dict, template_map: dict, clean_claim_weeks: int = 0) -> tuple[float, list[str]]:
     if _lgbm_model is None or _lgbm_feature_list is None:
         return (75.0, ["உங்கள் பிரீமியம் கணக்கிடப்பட்டது"] * 3)
     
@@ -122,9 +122,18 @@ def _predict_lgbm(features: dict, template_map: dict) -> tuple[float, list[str]]
         top3_idx = sorted(range(len(vals)), key=lambda i: abs(vals[i]), reverse=True)[:3]
         
         shap_top3 = []
+        weekly_premium = raw_premium
         for idx in top3_idx:
             feat_name = _lgbm_feature_list[idx]
-            shap_top3.append(template_map.get(feat_name, "உங்கள் பிரீமியம் கணக்கிடப்பட்டது"))
+            template = template_map.get(feat_name, "உங்கள் பிரீமியம் கணக்கிடப்பட்டது")
+            amount = round(abs(float(vals[idx])) * weekly_premium, 1)
+            if feat_name in ("open_meteo_7d_precip_probability", "flood_hazard_zone_tier", "tenure_discount_factor"):
+                formatted = template.replace("{amount}", str(amount))
+            elif feat_name == "activity_consistency_score":
+                formatted = template.replace("{weeks}", str(int(clean_claim_weeks))).replace("{amount}", str(amount))
+            else:
+                formatted = template.replace("{amount}", str(amount)).replace("{weeks}", str(int(clean_claim_weeks)))
+            shap_top3.append(formatted)
             
         return (raw_premium, shap_top3)
     except Exception as e:
@@ -165,7 +174,8 @@ def calculate_premium(
     activity_consistency_score: float,
     tenure_discount_factor: float,
     historical_claim_rate_zone: float,
-    language: str
+    language: str,
+    clean_claim_weeks: int = 0,
 ) -> dict:
     normalized_language = (language or "").strip().lower()
     if normalized_language in ("hi", "hindi"):
@@ -200,7 +210,7 @@ def calculate_premium(
             "tenure_discount_factor": tenure_discount_factor,
             "historical_claim_rate_zone": historical_claim_rate_zone
         }
-        raw_premium, shap_top3 = _predict_lgbm(features, template_map)
+        raw_premium, shap_top3 = _predict_lgbm(features, template_map, clean_claim_weeks=clean_claim_weeks)
         model_used = "lgbm"
 
     adjusted = raw_premium * recency_multiplier

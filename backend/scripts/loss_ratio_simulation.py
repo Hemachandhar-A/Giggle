@@ -18,6 +18,8 @@ CLIMATE_ADJUSTMENT_FACTOR = 1.1
 TARGET_LOSS_RATIO = 0.65
 WEEKLY_PREMIUM_FLOOR = 49.0
 WEEKLY_PREMIUM_CEILING = 149.0
+RAIN_SCALE_MIN = 5.0
+RAIN_SCALE_MAX = 30.0
 
 FLOOD_TIER_MULTIPLIERS = {"low": 1.0, "medium": 1.5, "high": 2.0}
 SEASON_MULTIPLIERS = {"NE_monsoon": 1.4, "SW_monsoon": 1.2, "heat": 1.1, "dry": 0.8}
@@ -34,10 +36,14 @@ def compute_weekly_premium_target(
     if season_flag not in SEASON_MULTIPLIERS:
         raise ValueError(f"season_flag must be one of {sorted(SEASON_MULTIPLIERS)}; got {season_flag}")
 
-    _ = avg_heavy_rain_days_yr
     tier_name = {1: "low", 2: "medium", 3: "high"}[flood_tier_numeric]
-    expected_payout = BASE_PAYOUT_PER_DISRUPTION_DAY * FLOOD_TIER_MULTIPLIERS[tier_name]
-    adjusted_payout = expected_payout * CLIMATE_ADJUSTMENT_FACTOR
+
+    rain_normalized = (float(avg_heavy_rain_days_yr) - RAIN_SCALE_MIN) / (RAIN_SCALE_MAX - RAIN_SCALE_MIN)
+    rain_normalized = max(0.0, min(1.0, rain_normalized))
+    rain_multiplier = 1.0 + (0.2 * rain_normalized)
+
+    raw_payout = BASE_PAYOUT_PER_DISRUPTION_DAY * FLOOD_TIER_MULTIPLIERS[tier_name] * rain_multiplier
+    adjusted_payout = raw_payout * CLIMATE_ADJUSTMENT_FACTOR
     annual_target = adjusted_payout / TARGET_LOSS_RATIO
     weekly_premium = (annual_target / 52.0) * SEASON_MULTIPLIERS[season_flag]
     return float(np.clip(weekly_premium, WEEKLY_PREMIUM_FLOOR, WEEKLY_PREMIUM_CEILING))

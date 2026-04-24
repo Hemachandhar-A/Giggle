@@ -181,13 +181,8 @@ def calculate_premium_endpoint(request: PremiumCalculateRequest, db: Session = D
             activity_consistency_score=features["activity_consistency_score"],
             tenure_discount_factor=features["tenure_discount_factor"],
             historical_claim_rate_zone=features["historical_claim_rate_zone"],
-            language=worker.language_preference
-        )
-
-        inference_result["tamil_explanation"] = (
-            inference_result["shap_top3"][0]
-            if inference_result.get("shap_top3")
-            else "உங்கள் பிரீமியம் கணக்கிடப்பட்டது"
+            language=worker.language_preference,
+            clean_claim_weeks=policy.clean_claim_weeks or 0,
         )
 
         # Update policy table
@@ -298,13 +293,8 @@ def renew_premium_endpoint(
             activity_consistency_score=features["activity_consistency_score"],
             tenure_discount_factor=features["tenure_discount_factor"],
             historical_claim_rate_zone=features["historical_claim_rate_zone"],
-            language=worker.language_preference
-        )
-
-        inference_result["tamil_explanation"] = (
-            inference_result["shap_top3"][0]
-            if inference_result.get("shap_top3")
-            else "உங்கள் பிரீமியம் கணக்கிடப்பட்டது"
+            language=worker.language_preference,
+            clean_claim_weeks=policy.clean_claim_weeks or 0,
         )
 
         # Update policy table
