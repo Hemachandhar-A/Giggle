@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, cast
@@ -11,7 +13,7 @@ from typing import Any, cast
 from celery import shared_task
 from sqlalchemy import func
 
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.delivery import DeliveryHistory
@@ -26,6 +28,9 @@ from app.trigger.aqi_monitor import check_aqi_trigger
 from app.trigger.composite_scorer import compute_composite_score
 from app.trigger.imd_classifier import classify_heat, classify_rainfall
 from app.trigger.open_meteo import query_three_points
+from app.tasks.celery_app import celery_app
+
+logger = logging.getLogger(__name__)
 
 try:
     _fraud_behavioral = importlib.import_module("app.fraud.behavioral")
@@ -204,7 +209,7 @@ def poll_all_zones() -> dict[str, int]:
             max_temp_c = float(weather.get("max_temperature_2m_c", 0.0))
 
             rain_result = classify_rainfall(rain_mm)
-            heat_result = classify_heat(max_temp_c)
+            heat_result = classify_heat(max_temp_c, 4)
             aqi_result = check_aqi_trigger(zone_id)
 
             zone_tier = _zone_tier_from_numeric(zone_tier_numeric)
@@ -440,3 +445,31 @@ def initiate_zone_payouts(
     finally:
         if db_gen is not None and hasattr(db_gen, "close"):
             db_gen.close()
+
+
+@celery_app.task(name="app.tasks.trigger_polling.detect_ring_registrations_task")
+def detect_ring_registrations_task() -> None:
+    db = SessionLocal()
+    try:
+        from app.fraud.graph import detect_ring_registrations
+
+        rings = detect_ring_registrations(db)
+        for ring in rings:
+            first_worker = str(ring[0]) if ring else "unknown"
+            try:
+                entity_id = uuid.UUID(first_worker)
+            except Exception:
+                entity_id = uuid.uuid4()
+
+            audit = AuditEvent(
+                event_type="fraud_ring_detected",
+                entity_id=entity_id,
+                entity_type="worker",
+                event_data={"worker_ids": list(ring)},
+            )
+            db.add(audit)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Ring detection failed: {e}")
+    finally:
+        db.close()

@@ -129,15 +129,16 @@ def test_post_simulate_creates_event_sets_suspension_and_enqueues_task(monkeypat
 
     monkeypatch.setattr(trigger_api, "set_zone_suspended", lambda zone_id: suspended.__setitem__("zone", zone_id))
     monkeypatch.setattr(
-        trigger_api.initiate_zone_payouts,
-        "delay",
-        lambda *args: delayed.__setitem__("args", args),
+        trigger_api,
+        "initiate_zone_payouts",
+        SimpleNamespace(delay=lambda *args: delayed.__setitem__("args", args)),
     )
 
     client = _client_with_db(fake_db)
     response = client.post(
         "/api/v1/trigger/simulate",
         json={"zone_cluster_id": 3, "trigger_type": "heavy_rain", "duration_hours": 2.0},
+        headers={"X-Admin-Key": "gigshield-admin"},
     )
 
     assert response.status_code == 200
@@ -160,6 +161,7 @@ def test_post_simulate_returns_409_when_active_trigger_exists():
     response = client.post(
         "/api/v1/trigger/simulate",
         json={"zone_cluster_id": 1, "trigger_type": "heavy_rain", "duration_hours": 1.0},
+        headers={"X-Admin-Key": "gigshield-admin"},
     )
 
     assert response.status_code == 409
@@ -174,6 +176,7 @@ def test_post_simulate_rejects_invalid_trigger_type():
     response = client.post(
         "/api/v1/trigger/simulate",
         json={"zone_cluster_id": 1, "trigger_type": "invalid_type", "duration_hours": 1.0},
+        headers={"X-Admin-Key": "gigshield-admin"},
     )
 
     assert response.status_code == 422
@@ -187,6 +190,7 @@ def test_post_simulate_returns_404_for_unknown_zone():
     response = client.post(
         "/api/v1/trigger/simulate",
         json={"zone_cluster_id": 1, "trigger_type": "heavy_rain", "duration_hours": 1.0},
+        headers={"X-Admin-Key": "gigshield-admin"},
     )
 
     assert response.status_code == 404

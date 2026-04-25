@@ -7,17 +7,19 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.payout import PayoutEvent
 from app.models.worker import WorkerProfile
 from app.payout.razorpay_client import initiate_upi_payout
+from app.schemas.claims import ClaimResolveRequest as SchemaClaimResolveRequest
 
 
 router = APIRouter(prefix="/api/v1/claims", tags=["claims"])
@@ -155,7 +157,14 @@ def get_claim_detail(
 
 
 @router.get("/pending", response_model=PendingClaimsResponse)
-def get_pending_claims(db: Session = Depends(get_db)) -> PendingClaimsResponse:
+def get_pending_claims(
+    admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    db: Session = Depends(get_db),
+) -> PendingClaimsResponse:
+    expected_admin_key = getattr(settings, "ADMIN_KEY", None) or settings.admin_key
+    if admin_key != expected_admin_key:
+        raise HTTPException(status_code=403, detail="forbidden")
+
     claims = (
         db.query(Claim)
         .filter((Claim.fraud_routing == "partial_review") | (Claim.status == "held"))
@@ -225,8 +234,13 @@ def get_worker_claim_history(
 def resolve_claim(
     claim_id: UUID = Path(...),
     payload: ResolveClaimRequest | None = None,
+    admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
 ) -> ResolveClaimResponse:
+    expected_admin_key = getattr(settings, "ADMIN_KEY", None) or settings.admin_key
+    if admin_key != expected_admin_key:
+        raise HTTPException(status_code=403, detail="forbidden")
+
     if payload is None:
         raise HTTPException(status_code=422, detail="resolution is required")
 

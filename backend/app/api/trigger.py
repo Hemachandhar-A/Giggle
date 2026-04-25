@@ -7,17 +7,19 @@ from decimal import Decimal
 from typing import Any, Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, Header, HTTPException, Path
 from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.trigger import TriggerEvent
 from app.models.zone import ZoneCluster
 from app.tasks.trigger_polling import initiate_zone_payouts, set_zone_suspended
+from app.schemas.trigger import TriggerSimulateRequest as SchemaTriggerSimulateRequest
 
 
 router = APIRouter(prefix="/api/v1/trigger", tags=["trigger"])
@@ -175,8 +177,13 @@ def get_zone_trigger_state(
 @router.post("/simulate", response_model=SimulateTriggerResponse)
 def simulate_trigger(
     payload: SimulateTriggerRequest,
+    admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
     db: Session = Depends(get_db),
 ) -> SimulateTriggerResponse:
+    expected_admin_key = getattr(settings, "ADMIN_KEY", None) or settings.admin_key
+    if admin_key != expected_admin_key:
+        raise HTTPException(status_code=403, detail="forbidden")
+
     trigger_type = payload.trigger_type.strip()
     if trigger_type not in ALLOWED_TRIGGER_TYPES:
         raise HTTPException(status_code=422, detail="invalid trigger_type")

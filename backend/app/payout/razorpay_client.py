@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import hmac
 from typing import Any
 
 from app.core.config import settings
@@ -34,6 +36,22 @@ def _build_client() -> Any:
     return razorpay.Client(
         auth=(settings.razorpay_key_id, settings.razorpay_key_secret)
     )
+
+
+def verify_webhook_signature(
+    payload_body: bytes,
+    razorpay_signature: str,
+) -> bool:
+    try:
+        secret = getattr(settings, "RAZORPAY_KEY_SECRET", None) or settings.razorpay_key_secret
+        expected = hmac.new(
+            secret.encode(),
+            payload_body,
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(expected, razorpay_signature)
+    except Exception:
+        return False
 
 
 def initiate_upi_payout(vpa: str, amount_rupees: float, claim_id: str) -> dict[str, Any]:

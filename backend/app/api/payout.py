@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 from datetime import datetime, timezone
 from typing import Any, Literal, cast
 from uuid import UUID
@@ -17,6 +15,8 @@ from app.core.database import get_db
 from app.models.audit import AuditEvent
 from app.models.payout import PayoutEvent
 from app.models.worker import WorkerProfile
+from app.payout.razorpay_client import verify_webhook_signature
+from app.schemas.payout import RazorpayWebhookPayload
 
 
 router = APIRouter(prefix="/api/v1/payout", tags=["payout"])
@@ -103,18 +103,14 @@ async def razorpay_payout_webhook(
     raw_body = await request.body()
 
     if not x_razorpay_signature:
-        raise HTTPException(status_code=401, detail="missing Razorpay signature")
+        raise HTTPException(status_code=400, detail="missing Razorpay signature")
 
-    expected_signature = hmac.new(
-        settings.razorpay_key_secret.encode("utf-8"),
-        raw_body,
-        hashlib.sha256,
-    ).hexdigest()
+    if not verify_webhook_signature(raw_body, x_razorpay_signature):
+        raise HTTPException(status_code=400, detail="invalid Razorpay signature")
 
-    if not hmac.compare_digest(expected_signature, x_razorpay_signature):
-        raise HTTPException(status_code=401, detail="invalid Razorpay signature")
-
-    payload = await request.json()
+    payload = cast(RazorpayWebhookPayload | dict[str, Any], await request.json())
+    if isinstance(payload, RazorpayWebhookPayload):
+        payload = payload.model_dump()
     event_type = str(payload.get("event", ""))
 
     payout_entity = payload.get("payload", {}).get("payout", {}).get("entity", {})

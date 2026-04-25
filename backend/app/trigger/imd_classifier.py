@@ -50,17 +50,23 @@ def classify_rainfall(mm_per_24h: float) -> dict:
     return {
         "triggered": triggered,
         "category": category,
+        "mm": rainfall,
         "signal_weight": RAINFALL_SIGNAL_WEIGHT if triggered else 0.0,
     }
 
 
-def classify_heat(temp_celsius: float) -> dict:
+def classify_heat(temp_celsius: float, consecutive_hours: int = SEVERE_AQI_CONSECUTIVE_HOURS) -> dict:
     """Classify severe heatwave condition from max temperature."""
     temp = _validate_finite_number(temp_celsius, "temp_celsius")
+    if not isinstance(consecutive_hours, int):
+        raise TypeError("consecutive_hours must be an integer")
+    if consecutive_hours < 0:
+        raise ValueError("consecutive_hours cannot be negative")
 
-    triggered = temp >= SEVERE_HEAT_C
+    triggered = temp >= SEVERE_HEAT_C and consecutive_hours >= SEVERE_AQI_CONSECUTIVE_HOURS
     return {
         "triggered": triggered,
+        "consecutive_hours": consecutive_hours,
         "signal_weight": HEAT_SIGNAL_WEIGHT if triggered else 0.0,
     }
 

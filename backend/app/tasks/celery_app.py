@@ -43,6 +43,10 @@ celery_app.conf.update(
             "task": "app.tasks.aqi_polling.poll_aqi_zones",
             "schedule": 3600.0,
         },
+        "detect-rings-daily-2am": {
+            "task": "app.tasks.trigger_polling.detect_ring_registrations_task",
+            "schedule": crontab(hour=2, minute=0),
+        },
     },
 )
 

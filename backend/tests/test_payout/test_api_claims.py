@@ -106,7 +106,7 @@ def test_get_pending_claims_returns_partial_and_held_sorted():
     fake_db.all_results[Claim] = [c2, c1]
 
     client = _client_with_db(fake_db)
-    response = client.get("/api/v1/claims/pending")
+    response = client.get("/api/v1/claims/pending", headers={"X-Admin-Key": "gigshield-admin"})
 
     assert response.status_code == 200
     payload = response.json()["items"]
@@ -204,7 +204,11 @@ def test_put_resolve_approve_pays_remaining_and_writes_event(monkeypatch):
     monkeypatch.setattr(claims_api, "initiate_upi_payout", _fake_payout)
 
     client = _client_with_db(fake_db)
-    response = client.put(f"/api/v1/claims/{claim_id}/resolve", json={"resolution": "approve"})
+    response = client.put(
+        f"/api/v1/claims/{claim_id}/resolve",
+        json={"resolution": "approve"},
+        headers={"X-Admin-Key": "gigshield-admin"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -236,7 +240,11 @@ def test_put_resolve_reject_updates_status_without_payout(monkeypatch):
     monkeypatch.setattr(claims_api, "initiate_upi_payout", lambda *args: called.__setitem__("count", called["count"] + 1))
 
     client = _client_with_db(fake_db)
-    response = client.put(f"/api/v1/claims/{claim_id}/resolve", json={"resolution": "reject"})
+    response = client.put(
+        f"/api/v1/claims/{claim_id}/resolve",
+        json={"resolution": "reject"},
+        headers={"X-Admin-Key": "gigshield-admin"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -250,7 +258,11 @@ def test_put_resolve_returns_404_when_claim_missing():
     fake_db.first_results[Claim] = [None]
 
     client = _client_with_db(fake_db)
-    response = client.put(f"/api/v1/claims/{uuid4()}/resolve", json={"resolution": "approve"})
+    response = client.put(
+        f"/api/v1/claims/{uuid4()}/resolve",
+        json={"resolution": "approve"},
+        headers={"X-Admin-Key": "gigshield-admin"},
+    )
 
     assert response.status_code == 404
 
@@ -295,7 +307,11 @@ def test_put_resolve_approve_with_no_remaining_does_not_fire_payout(monkeypatch)
     monkeypatch.setattr(claims_api, "initiate_upi_payout", lambda *args: called.__setitem__("count", called["count"] + 1))
 
     client = _client_with_db(fake_db)
-    response = client.put(f"/api/v1/claims/{claim_id}/resolve", json={"resolution": "approve"})
+    response = client.put(
+        f"/api/v1/claims/{claim_id}/resolve",
+        json={"resolution": "approve"},
+        headers={"X-Admin-Key": "gigshield-admin"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
@@ -318,6 +334,10 @@ def test_put_resolve_approve_returns_404_when_worker_missing():
     fake_db.first_results[WorkerProfile] = [None]
 
     client = _client_with_db(fake_db)
-    response = client.put(f"/api/v1/claims/{claim_id}/resolve", json={"resolution": "approve"})
+    response = client.put(
+        f"/api/v1/claims/{claim_id}/resolve",
+        json={"resolution": "approve"},
+        headers={"X-Admin-Key": "gigshield-admin"},
+    )
 
     assert response.status_code == 404

@@ -472,6 +472,8 @@ def compute_payout(
         raise ValueError("disruption_duration_hours must be >= 0")
     if cascade_day < 1:
         raise ValueError("cascade_day must be >= 1")
+    if cascade_day > 5:
+        raise ValueError("cascade_day must be <= 5")
 
     as_of = _current_time()
     day_of_week = int(as_of.strftime("%w"))

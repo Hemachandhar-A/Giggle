@@ -126,7 +126,7 @@ def test_webhook_rejects_invalid_signature(monkeypatch):
         headers={"Content-Type": "application/json", "X-Razorpay-Signature": "bad-signature"},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == 400
 
 
 def test_webhook_accepts_valid_signature_and_updates_paid(monkeypatch):
@@ -203,7 +203,7 @@ def test_webhook_rejects_when_signature_missing(monkeypatch):
         headers={"Content-Type": "application/json"},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == 400
 
 
 def test_webhook_returns_422_when_payload_missing_payout_id(monkeypatch):
