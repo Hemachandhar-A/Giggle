@@ -369,5 +369,5 @@ def test_suspend_with_correct_admin_key_suspends_and_writes_audit_event(monkeypa
     assert body["status"] == "suspended"
     assert len(db.audit_events) == 1
     assert db.audit_events[0].event_type == "policy_suspended"
-    assert db.audit_events[0].payload["reason"] == "admin_action"
-    assert db.audit_events[0].payload["worker_id"] == str(worker_id)
+    assert db.audit_events[0].event_data["reason"] == "admin_action"
+    assert db.audit_events[0].event_data["worker_id"] == str(worker_id)

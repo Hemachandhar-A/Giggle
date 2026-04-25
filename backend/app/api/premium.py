@@ -182,7 +182,6 @@ def calculate_premium_endpoint(request: PremiumCalculateRequest, db: Session = D
             tenure_discount_factor=features["tenure_discount_factor"],
             historical_claim_rate_zone=features["historical_claim_rate_zone"],
             language=worker.language_preference,
-            clean_claim_weeks=policy.clean_claim_weeks or 0,
         )
 
         # Update policy table
@@ -234,12 +233,15 @@ def get_premium_history(worker_id: UUID, db: Session = Depends(get_db)):
         
         history_items = []
         for p in policies:
+            shap = p.shap_explanation_json
+            if shap == [] or shap == {}:
+                shap = None
             history_items.append(
                 PremiumHistoryItem(
                     week_number=p.coverage_week_number,
                     premium_amount=float(p.weekly_premium_amount) if p.weekly_premium_amount is not None else 0.0,
                     model_used=p.model_used or "stub",
-                    shap_explanation_json=p.shap_explanation_json,
+                    shap_explanation_json=shap,
                     calculated_at=p.updated_at
                 )
             )
@@ -294,7 +296,6 @@ def renew_premium_endpoint(
             tenure_discount_factor=features["tenure_discount_factor"],
             historical_claim_rate_zone=features["historical_claim_rate_zone"],
             language=worker.language_preference,
-            clean_claim_weeks=policy.clean_claim_weeks or 0,
         )
 
         # Update policy table

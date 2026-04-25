@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 import tempfile
 import pandas as pd
+import numpy as np
 import joblib
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -25,6 +26,8 @@ from scripts.synthetic_data import (
 )
 from scripts.train_premium_models import (
     load_training_data,
+    run_m1_m2_training_pipeline,
+    main as train_models_main,
     train_m1_glm_cold_start,
     train_m2_lgbm_weekly,
 )
@@ -235,10 +238,14 @@ def test_unsupported_language_falls_back_to_tamil(monkeypatch):
 
 
 @pytest.mark.skipif(not ARTIFACTS_LOADED, reason="needs artifacts")
-def test_affordability_cap_1000_weekly_baseline_leq_25():
+def test_affordability_cap_1000_weekly_baseline_floor_applies():
+    # Affordability cap is applied at income × 0.025 = ₹25
+    # Floor then overrides to ₹49 (spec Section 3.7 Step 5)
+    # affordability_capped=True confirms cap was triggered
+    # before floor was applied — this is correct behavior
     result = calculate_premium(**base_kwargs(income_baseline_weekly=1000.0, enrollment_week=6))
-    assert result["premium_amount"] == 49.0
-    assert result["affordability_capped"] is True
+    assert result['premium_amount'] == 49.0
+    assert result['affordability_capped'] == True
 
 
 def test_m2_shap_top3_has_no_placeholder_literals(monkeypatch):
@@ -277,7 +284,7 @@ def test_m2_shap_top3_has_no_placeholder_literals(monkeypatch):
         ],
     )
 
-    result = inference_module.calculate_premium(**base_kwargs(enrollment_week=6, language="ta", clean_claim_weeks=4))
+    result = inference_module.calculate_premium(**base_kwargs(enrollment_week=6, language="ta"))
     assert "{amount}" not in result["shap_top3"][0]
     assert "{weeks}" not in result["shap_top3"][0]
 
@@ -1008,3 +1015,242 @@ class TestSyntheticTrainingData:
             loaded = pd.read_csv(output_path)
             assert loaded.shape == frame.shape
             assert loaded.shape[0] == 25
+
+
+class TestTrainPremiumModelsCoverageBranches:
+    def test_load_training_data_missing_file_raises(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "does_not_exist.csv"
+            with pytest.raises(FileNotFoundError):
+                load_training_data(missing)
+
+    def test_load_training_data_empty_csv_raises(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "empty.csv"
+            pd.DataFrame(
+                columns=[
+                    "flood_hazard_zone_tier",
+                    "season_flag",
+                    "platform",
+                    "zone_cluster_id",
+                    "delivery_baseline_30d",
+                    "income_baseline_weekly",
+                    "enrollment_week",
+                    "open_meteo_7d_precip_probability",
+                    "activity_consistency_score",
+                    "tenure_discount_factor",
+                    "historical_claim_rate_zone",
+                    "weekly_premium",
+                ]
+            ).to_csv(csv_path, index=False)
+            with pytest.raises(ValueError) as error_info:
+                load_training_data(csv_path)
+            assert "empty" in str(error_info.value).lower()
+
+    def test_train_m1_glm_raises_when_rmse_above_threshold(self, monkeypatch):
+        rows = []
+        for index in range(20):
+            rows.append(
+                {
+                    "flood_hazard_zone_tier": "high" if index % 2 else "medium",
+                    "season_flag": "NE_monsoon" if index % 3 else "SW_monsoon",
+                    "platform": "zomato" if index % 2 else "swiggy",
+                    "zone_cluster_id": 1,
+                    "delivery_baseline_30d": 300.0,
+                    "income_baseline_weekly": 4000.0,
+                    "enrollment_week": (index % 4) + 1,
+                    "open_meteo_7d_precip_probability": 0.65,
+                    "activity_consistency_score": 0.75,
+                    "tenure_discount_factor": 0.95,
+                    "historical_claim_rate_zone": 0.20,
+                    "weekly_premium": 80.0 + (index % 5),
+                }
+            )
+        frame = pd.DataFrame(rows)
+
+        import scripts.train_premium_models as train_module
+        monkeypatch.setattr(train_module, "mean_squared_error", lambda *args, **kwargs: 999.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_path = Path(temp_dir) / "glm.joblib"
+            with pytest.raises(ValueError) as error_info:
+                train_m1_glm_cold_start(frame, artifact_path)
+            assert "exceeds threshold" in str(error_info.value)
+
+    def test_train_m2_missing_columns_raises(self):
+        frame = pd.DataFrame(
+            {
+                "flood_hazard_zone_tier": ["high"],
+                "platform": ["zomato"],
+                "zone_cluster_id": [1],
+                "delivery_baseline_30d": [300.0],
+                "income_baseline_weekly": [4000.0],
+                "enrollment_week": [6],
+                # season_flag intentionally missing
+                "open_meteo_7d_precip_probability": [0.5],
+                "activity_consistency_score": [0.7],
+                "tenure_discount_factor": [0.9],
+                "historical_claim_rate_zone": [0.2],
+                "weekly_premium": [90.0],
+            }
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError) as error_info:
+                train_m2_lgbm_weekly(
+                    frame,
+                    Path(temp_dir) / "m2.joblib",
+                    Path(temp_dir) / "shap.joblib",
+                    Path(temp_dir) / "feat.joblib",
+                )
+            assert "missing required columns" in str(error_info.value)
+
+    def test_train_m2_negative_prediction_branch(self, monkeypatch):
+        rows = []
+        for index in range(20):
+            rows.append(
+                {
+                    "flood_hazard_zone_tier": ["low", "medium", "high"][index % 3],
+                    "season_flag": ["dry", "heat", "SW_monsoon", "NE_monsoon"][index % 4],
+                    "platform": "zomato",
+                    "zone_cluster_id": (index % 20) + 1,
+                    "delivery_baseline_30d": 180.0 + float(index),
+                    "income_baseline_weekly": 2500.0 + float(index * 20),
+                    "enrollment_week": 5 + (index % 20),
+                    "open_meteo_7d_precip_probability": 0.20 + (index % 10) * 0.05,
+                    "activity_consistency_score": 0.30 + (index % 7) * 0.08,
+                    "tenure_discount_factor": 0.85 + (index % 10) * 0.01,
+                    "historical_claim_rate_zone": 0.05 + (index % 12) * 0.02,
+                    "weekly_premium": 80.0,
+                }
+            )
+        frame = pd.DataFrame(rows)
+
+        import scripts.train_premium_models as train_module
+
+        class DummyModel:
+            objective = "tweedie"
+            tweedie_variance_power = 1.5
+
+            def fit(self, *args, **kwargs):
+                return self
+
+            def predict(self, x):
+                return np.array([-1.0] * len(x))
+
+        monkeypatch.setattr(train_module.lgb, "LGBMRegressor", lambda **kwargs: DummyModel())
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError) as error_info:
+                train_m2_lgbm_weekly(
+                    frame,
+                    Path(temp_dir) / "m2.joblib",
+                    Path(temp_dir) / "shap.joblib",
+                    Path(temp_dir) / "feat.joblib",
+                )
+            assert "negative predictions" in str(error_info.value)
+
+    def test_train_m2_rmse_threshold_branch(self, monkeypatch):
+        rows = []
+        for index in range(20):
+            rows.append(
+                {
+                    "flood_hazard_zone_tier": ["low", "medium", "high"][index % 3],
+                    "season_flag": ["dry", "heat", "SW_monsoon", "NE_monsoon"][index % 4],
+                    "platform": "zomato",
+                    "zone_cluster_id": (index % 20) + 1,
+                    "delivery_baseline_30d": 180.0 + float(index),
+                    "income_baseline_weekly": 2500.0 + float(index * 20),
+                    "enrollment_week": 5 + (index % 20),
+                    "open_meteo_7d_precip_probability": 0.20 + (index % 10) * 0.05,
+                    "activity_consistency_score": 0.30 + (index % 7) * 0.08,
+                    "tenure_discount_factor": 0.85 + (index % 10) * 0.01,
+                    "historical_claim_rate_zone": 0.05 + (index % 12) * 0.02,
+                    "weekly_premium": 80.0,
+                }
+            )
+        frame = pd.DataFrame(rows)
+
+        import scripts.train_premium_models as train_module
+
+        class DummyModel:
+            objective = "tweedie"
+            tweedie_variance_power = 1.5
+
+            def fit(self, *args, **kwargs):
+                return self
+
+            def predict(self, x):
+                return np.array([100.0] * len(x))
+
+        monkeypatch.setattr(train_module.lgb, "LGBMRegressor", lambda **kwargs: DummyModel())
+        monkeypatch.setattr(train_module, "mean_squared_error", lambda *args, **kwargs: 999.0)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError) as error_info:
+                train_m2_lgbm_weekly(
+                    frame,
+                    Path(temp_dir) / "m2.joblib",
+                    Path(temp_dir) / "shap.joblib",
+                    Path(temp_dir) / "feat.joblib",
+                )
+            assert "exceeds threshold" in str(error_info.value)
+
+    def test_run_pipeline_summary_fields(self, monkeypatch):
+        import scripts.train_premium_models as train_module
+
+        dummy_frame = pd.DataFrame({"a": [1]})
+        monkeypatch.setattr(train_module, "load_training_data", lambda p: dummy_frame)
+        monkeypatch.setattr(
+            train_module,
+            "train_m1_glm_cold_start",
+            lambda frame, path: {"rmse": 1.0, "artifact_path": str(path), "train_rows": 1, "valid_rows": 1},
+        )
+        monkeypatch.setattr(
+            train_module,
+            "train_m2_lgbm_weekly",
+            lambda frame, model_artifact_path, shap_artifact_path, feature_list_artifact_path: {
+                "rmse": 1.0,
+                "model_artifact_path": str(model_artifact_path),
+                "shap_artifact_path": str(shap_artifact_path),
+                "feature_list_artifact_path": str(feature_list_artifact_path),
+                "train_rows": 1,
+                "valid_rows": 1,
+                "negative_predictions": 0,
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            summary = run_m1_m2_training_pipeline(
+                input_csv_path=Path(temp_dir) / "input.csv",
+                artifact_dir=Path(temp_dir) / "artifacts",
+            )
+            assert "m1" in summary
+            assert "m2" in summary
+            assert "artifact_dir" in summary
+
+    def test_main_executes_and_prints_summary(self, monkeypatch, capsys):
+        import scripts.train_premium_models as train_module
+
+        monkeypatch.setattr(
+            train_module,
+            "run_m1_m2_training_pipeline",
+            lambda input_csv_path, artifact_dir: {
+                "input_csv_path": str(input_csv_path),
+                "artifact_dir": str(artifact_dir),
+                "m1": {"rmse": 1.0, "artifact_path": "glm_m1.joblib"},
+                "m2": {
+                    "rmse": 1.0,
+                    "model_artifact_path": "lgbm_m2.joblib",
+                    "shap_artifact_path": "shap_explainer_m2.joblib",
+                    "feature_list_artifact_path": "lgbm_m2_feature_list.joblib",
+                },
+            },
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "in.csv"
+            artifact_dir = Path(temp_dir) / "artifacts"
+            monkeypatch.setattr(sys, "argv", ["train_premium_models.py", "--input-csv", str(input_path), "--artifact-dir", str(artifact_dir)])
+            train_models_main()
+            output = capsys.readouterr().out
+            assert "Training completed:" in output

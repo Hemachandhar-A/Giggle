@@ -13,8 +13,10 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from app.api.fraud import router
 from app.core.database import get_db
+from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.delivery import DeliveryHistory
+from app.models.trigger import TriggerEvent
 from app.models.worker import WorkerProfile
 from app.models.zone import ZoneCluster
 
@@ -26,6 +28,16 @@ class _FakeQuery:
 
     def filter_by(self, **kwargs):
         self._filters.update(kwargs)
+        return self
+
+    def filter(self, *criteria):
+        for criterion in criteria:
+            left = getattr(criterion, "left", None)
+            right = getattr(criterion, "right", None)
+            key = getattr(left, "key", None)
+            value = getattr(right, "value", None)
+            if key is not None:
+                self._filters[key] = value
         return self
 
     def first(self):
@@ -42,11 +54,13 @@ class _FakeQuery:
 
 
 class _FakeDB:
-    def __init__(self, workers, deliveries, zones, claims=None):
+    def __init__(self, workers, deliveries, zones, claims=None, trigger_events=None):
         self._workers = workers
         self._deliveries = deliveries
         self._zones = zones
         self._claims = claims or []
+        self._trigger_events = trigger_events or []
+        self._audit_events = []
 
     def query(self, model):
         if model is WorkerProfile:
@@ -57,7 +71,16 @@ class _FakeDB:
             return _FakeQuery(self._zones)
         if model is Claim:
             return _FakeQuery(self._claims)
+        if model is TriggerEvent:
+            return _FakeQuery(self._trigger_events)
         return _FakeQuery([])
+
+    def add(self, obj):
+        if isinstance(obj, AuditEvent):
+            self._audit_events.append(obj)
+
+    def commit(self):
+        return None
 
 
 def _build_client(db: _FakeDB) -> TestClient:

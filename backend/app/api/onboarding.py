@@ -1,6 +1,8 @@
 import hashlib
 import logging
 import re
+import uuid
+from typing import Literal
 from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -19,6 +21,8 @@ from app.models.worker import WorkerProfile
 
 router = APIRouter(prefix="/api/v1/onboarding", tags=["onboarding"])
 logger = logging.getLogger(__name__)
+
+KYC_PLACEHOLDER_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
 
 class AadhaarKYCRequest(BaseModel):
@@ -68,7 +72,7 @@ class RegisterWorkerRequest(BaseModel):
     partner_id: str
     pincode: int
     device_fingerprint: str
-    language_preference: str
+    language_preference: Literal["ta", "en", "hi"]
 
 
 class RegisterWorkerResponse(BaseModel):
@@ -80,6 +84,20 @@ class RegisterWorkerResponse(BaseModel):
     days_until_eligible: int
 
 
+class OnboardingStatusResponse(BaseModel):
+    worker_id: UUID
+    registration_status: str
+    policy_status: str
+    enrollment_date: datetime
+    days_since_enrollment: int
+    days_until_eligible: int
+    is_eligible: bool
+    flood_hazard_tier: str
+    zone_cluster_id: int
+    platform: str
+    weekly_premium_amount: float
+
+
 def _next_sunday_midnight(now_utc: datetime) -> datetime:
     days_until_sunday = (6 - now_utc.weekday()) % 7
     if days_until_sunday == 0:
@@ -89,7 +107,7 @@ def _next_sunday_midnight(now_utc: datetime) -> datetime:
 
 
 @router.post("/kyc/aadhaar", response_model=AadhaarKYCResponse)
-def verify_aadhaar(payload: AadhaarKYCRequest) -> AadhaarKYCResponse:
+def verify_aadhaar(payload: AadhaarKYCRequest, db: Session = Depends(get_db)) -> AadhaarKYCResponse:
     stripped_aadhaar = payload.aadhaar_number.replace(" ", "")
 
     if len(stripped_aadhaar) != 12 or not stripped_aadhaar.isdigit():
@@ -105,11 +123,21 @@ def verify_aadhaar(payload: AadhaarKYCRequest) -> AadhaarKYCResponse:
         )
 
     aadhaar_hash = hashlib.sha256(stripped_aadhaar.encode("utf-8")).hexdigest()
+    db.add(
+        AuditEvent(
+            event_type="kyc_aadhaar_verified",
+            entity_id=KYC_PLACEHOLDER_ID,
+            entity_type="worker",
+            event_data={"verified": True},
+            actor="system",
+        )
+    )
+    db.commit()
     return AadhaarKYCResponse(verified=True, aadhaar_hash=aadhaar_hash)
 
 
 @router.post("/kyc/pan", response_model=PanKYCResponse)
-def verify_pan(payload: PanKYCRequest) -> PanKYCResponse:
+def verify_pan(payload: PanKYCRequest, db: Session = Depends(get_db)) -> PanKYCResponse:
     if not re.fullmatch(r"[A-Z]{5}[0-9]{4}[A-Z]{1}", payload.pan_number):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -117,11 +145,21 @@ def verify_pan(payload: PanKYCRequest) -> PanKYCResponse:
         )
 
     pan_hash = hashlib.sha256(payload.pan_number.encode("utf-8")).hexdigest()
+    db.add(
+        AuditEvent(
+            event_type="kyc_pan_verified",
+            entity_id=KYC_PLACEHOLDER_ID,
+            entity_type="worker",
+            event_data={"verified": True},
+            actor="system",
+        )
+    )
+    db.commit()
     return PanKYCResponse(verified=True, pan_hash=pan_hash)
 
 
 @router.post("/kyc/bank", response_model=BankKYCResponse)
-def verify_bank(payload: BankKYCRequest) -> BankKYCResponse:
+def verify_bank(payload: BankKYCRequest, db: Session = Depends(get_db)) -> BankKYCResponse:
     upi_vpa = payload.upi_vpa
 
     if "@" not in upi_vpa:
@@ -135,6 +173,17 @@ def verify_bank(payload: BankKYCRequest) -> BankKYCResponse:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="UPI VPA length must be between 5 and 100 characters",
         )
+
+    db.add(
+        AuditEvent(
+            event_type="kyc_bank_verified",
+            entity_id=KYC_PLACEHOLDER_ID,
+            entity_type="worker",
+            event_data={"upi_vpa": upi_vpa},
+            actor="system",
+        )
+    )
+    db.commit()
 
     return BankKYCResponse(
         verified=True,
@@ -166,6 +215,17 @@ def verify_platform_partner(
             detail="Partner ID not found for platform",
         )
 
+    db.add(
+        AuditEvent(
+            event_type="platform_verified",
+            entity_id=KYC_PLACEHOLDER_ID,
+            entity_type="worker",
+            event_data={"platform": payload.platform, "partner_id": payload.partner_id},
+            actor="system",
+        )
+    )
+    db.commit()
+
     return PlatformVerifyResponse(verified=True, partner_name=partner.partner_name)
 
 
@@ -181,10 +241,10 @@ def register_worker(
             detail="platform must be either 'zomato' or 'swiggy'",
         )
 
-    if payload.language_preference not in {"ta", "en"}:
+    if payload.language_preference not in {"ta", "en", "hi"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="language_preference must be either 'ta' or 'en'",
+            detail="language_preference must be one of 'ta', 'en', or 'hi'",
         )
 
     # Step 1: Duplicate aadhaar_hash check
@@ -331,4 +391,43 @@ def register_worker(
         weekly_premium_amount=float(policy.weekly_premium_amount),
         coverage_start=None,
         days_until_eligible=28,
+    )
+
+
+@router.get("/status/{worker_id}", response_model=OnboardingStatusResponse)
+def get_onboarding_status(worker_id: UUID, db: Session = Depends(get_db)) -> OnboardingStatusResponse:
+    worker = db.query(WorkerProfile).filter_by(id=worker_id).first()
+    if worker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker not found",
+        )
+
+    policy = db.query(Policy).filter_by(worker_id=worker_id).first()
+    if policy is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy not found for worker",
+        )
+
+    now_utc = datetime.now(timezone.utc)
+    enrollment_utc = worker.enrollment_date
+    if enrollment_utc.tzinfo is None:
+        enrollment_utc = enrollment_utc.replace(tzinfo=timezone.utc)
+
+    days_since_enrollment = (now_utc - enrollment_utc).days
+    days_until_eligible = max(0, 28 - days_since_enrollment)
+
+    return OnboardingStatusResponse(
+        worker_id=worker.id,
+        registration_status="complete",
+        policy_status=policy.status,
+        enrollment_date=worker.enrollment_date,
+        days_since_enrollment=days_since_enrollment,
+        days_until_eligible=days_until_eligible,
+        is_eligible=(days_until_eligible == 0),
+        flood_hazard_tier=worker.flood_hazard_tier,
+        zone_cluster_id=worker.zone_cluster_id,
+        platform=worker.platform,
+        weekly_premium_amount=float(policy.weekly_premium_amount),
     )

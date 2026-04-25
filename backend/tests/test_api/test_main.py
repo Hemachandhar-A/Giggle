@@ -14,7 +14,7 @@ PERSON1_OPENAPI_PATHS = {
     "/api/v1/onboarding/kyc/aadhaar",
     "/api/v1/policy/{worker_id}",
     "/api/v1/fraud/score",
-    "/api/v1/admin/",
+    "/api/v1/admin/dashboard/summary",
 }
 
 

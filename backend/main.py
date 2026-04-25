@@ -57,13 +57,12 @@ app.include_router(payout_router)
 def startup_event() -> None:
     from app.core import gis
 
-    logger.info("GIS module loaded successfully.")
     logger.info("GIS module loaded — flood tier and zone cluster functions ready.")
 
     if fraud_scorer.IF_LOADED and fraud_scorer.CBLOF_LOADED:
-        logger.info("Fraud models loaded successfully.")
+        logger.info("Fraud models loaded — iso_forest_m3 and cblof_m4 ready.")
     else:
-        logger.warning("Fraud models were not found at startup.")
+        logger.warning("Fraud models not found — scorer will return default score 0.1")
 
     logger.info("GigShield API started. All routers registered.")
 

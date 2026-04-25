@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.core.database import DeclarativeBase
@@ -26,7 +26,14 @@ class Claim(DeclarativeBase):
     peak_multiplier_applied = Column(Boolean, nullable=False, default=False)
     total_payout_amount = Column(Numeric(8, 2), nullable=False)
     fraud_score = Column(Numeric(4, 3), nullable=False)
-    fraud_routing = Column(String(20), nullable=False)
+    fraud_routing = Column(
+        String(20),
+        CheckConstraint(
+            "fraud_routing IN ('auto_approve','partial_review','hold')",
+            name="ck_claims_fraud_routing",
+        ),
+        nullable=True,
+    )
     zone_claim_match = Column(Boolean, nullable=True)
     activity_7d_score = Column(Numeric(4, 3), nullable=True)
     status = Column(String(20), nullable=False, default="pending")

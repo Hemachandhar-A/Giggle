@@ -32,15 +32,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Note: restoring permissions is not recommended in production.
-    # This downgrade allows reverting the permission changes if needed during development.
-    op.execute(
-        """
-        GRANT UPDATE ON audit_events TO PUBLIC
-        """
-    )
-    op.execute(
-        """
-        GRANT DELETE ON audit_events TO PUBLIC
-        """
-    )
+    # Intentionally a no-op.
+    # audit_events append-only constraint must never be reversed — downgrade is not permitted for this migration.
+    # If rollback is needed, drop and recreate the table.
+    pass

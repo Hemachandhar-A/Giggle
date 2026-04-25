@@ -390,8 +390,8 @@ All three phases leverage AI-assisted development (Cursor/GitHub Copilot/Claude)
 
 **Deliverables (per use case document):**
 - [x] README.md in GitHub repository covering: persona scenarios, workflow, weekly premium model, parametric triggers, platform justification, AI/ML integration plans, tech stack, development plan
-- [ ] GitHub repository link (live)
-- [ ] 2-minute video (publicly accessible link) — outlining strategy, plan of execution, and prototype with minimal scope
+- [x] GitHub repository link (live)
+- [x] 2-minute video (publicly accessible link) — outlining strategy, plan of execution, and prototype with minimal scope
 
 **Phase 1 Work Completed:**
 - Persona research and validation against TeamLease, IMD, SEWA, and CPCB documented data
@@ -410,8 +410,8 @@ All three phases leverage AI-assisted development (Cursor/GitHub Copilot/Claude)
 **Theme:** Protect Your Worker
 
 **Deliverables (per use case document):**
-- [ ] 2-minute demo video (publicly accessible link)
-- [ ] Executable source code demonstrating: Registration Process, Insurance Policy Management, Dynamic Premium Calculation, Claims Management
+- [x] 2-minute demo video (publicly accessible link)
+- [x] Executable source code demonstrating: Registration Process, Insurance Policy Management, Dynamic Premium Calculation, Claims Management
 
 **Sprint 1 (March 21–26) — Core Infrastructure**
 

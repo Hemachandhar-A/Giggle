@@ -2,7 +2,12 @@ import sys
 from unittest.mock import MagicMock
 from pathlib import Path
 import importlib
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from uuid import uuid4
 
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 import joblib
 import numpy as np
 import pytest
@@ -15,8 +20,15 @@ from app.fraud.behavioral import (
     compute_activity_7d_score,
     compute_enrollment_recency_score,
 )
+from app.api.fraud import router as fraud_router
+from app.core.database import get_db
 from app.fraud.graph import detect_ring_registrations
 import app.fraud.scorer as scorer
+from app.models.audit import AuditEvent
+from app.models.delivery import DeliveryHistory
+from app.models.trigger import TriggerEvent
+from app.models.worker import WorkerProfile
+from app.models.zone import ZoneCluster
 
 
 def test_compute_activity_7d_score_returns_ratio_for_standard_case():
@@ -261,3 +273,110 @@ def test_compute_fraud_score_gps_spoofer_vector_with_real_models_is_high():
         scorer.CBLOF_LOADED = original_cblof_loaded
 
     assert score > 0.5
+
+
+class _ApiFakeQuery:
+    def __init__(self, rows):
+        self._rows = rows
+        self._filters = {}
+
+    def filter_by(self, **kwargs):
+        self._filters.update(kwargs)
+        return self
+
+    def filter(self, *criteria):
+        for criterion in criteria:
+            left = getattr(criterion, "left", None)
+            right = getattr(criterion, "right", None)
+            key = getattr(left, "key", None)
+            value = getattr(right, "value", None)
+            if key is not None:
+                self._filters[key] = value
+        return self
+
+    def all(self):
+        return [row for row in self._rows if self._matches(row)]
+
+    def first(self):
+        for row in self._rows:
+            if self._matches(row):
+                return row
+        return None
+
+    def _matches(self, row):
+        return all(getattr(row, key, None) == value for key, value in self._filters.items())
+
+
+class _ApiFakeDB:
+    def __init__(self, worker, deliveries, zone_cluster, trigger_events):
+        self.worker = worker
+        self.deliveries = deliveries
+        self.zone_cluster = zone_cluster
+        self.trigger_events = trigger_events
+        self.audit_events = []
+
+    def query(self, model):
+        if model is WorkerProfile:
+            return _ApiFakeQuery([self.worker])
+        if model is DeliveryHistory:
+            return _ApiFakeQuery(self.deliveries)
+        if model is ZoneCluster:
+            return _ApiFakeQuery([self.zone_cluster])
+        if model is TriggerEvent:
+            return _ApiFakeQuery(self.trigger_events)
+        return _ApiFakeQuery([])
+
+    def add(self, obj):
+        if isinstance(obj, AuditEvent):
+            self.audit_events.append(obj)
+
+    def commit(self):
+        return None
+
+
+def test_fraud_score_hold_writes_fraud_hold_audit_event(monkeypatch):
+    worker_id = uuid4()
+    now_utc = datetime.now(timezone.utc)
+
+    worker = SimpleNamespace(
+        id=worker_id,
+        zone_cluster_id=4,
+        flood_hazard_tier="low",
+        enrollment_week=2,
+    )
+    deliveries = [
+        SimpleNamespace(recorded_at=now_utc - timedelta(days=1), deliveries_count=2),
+        SimpleNamespace(recorded_at=now_utc - timedelta(days=2), deliveries_count=3),
+    ]
+    zone_cluster = SimpleNamespace(id=4)
+    trigger_events = [SimpleNamespace(zone_cluster_id=4, status="active")]
+
+    fake_db = _ApiFakeDB(worker, deliveries, zone_cluster, trigger_events)
+
+    app = FastAPI()
+    app.include_router(fraud_router)
+
+    def _override_get_db():
+        yield fake_db
+
+    app.dependency_overrides[get_db] = _override_get_db
+
+    monkeypatch.setattr("app.api.fraud.compute_fraud_score", lambda **kwargs: 0.85)
+    monkeypatch.setattr("app.api.fraud.route_claim", lambda _score: "hold")
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/fraud/score",
+        json={
+            "worker_id": str(worker_id),
+            "zone_claim_match": 1,
+            "claim_to_enrollment_days": 15,
+            "event_claim_frequency": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["routing"] == "hold"
+    assert len(fake_db.audit_events) == 1
+    assert fake_db.audit_events[0].event_type == "fraud_hold"
+    assert fake_db.audit_events[0].event_data["routing"] == "hold"

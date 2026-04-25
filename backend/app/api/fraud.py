@@ -10,14 +10,17 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.fraud.behavioral import (
+    check_conditional_baseline_floor,
     check_rain_paradox,
     compute_activity_7d_score,
     compute_enrollment_recency_score,
 )
 from app.fraud.graph import detect_ring_registrations
 from app.fraud.scorer import compute_fraud_score, route_claim
+from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.delivery import DeliveryHistory
+from app.models.trigger import TriggerEvent
 from app.models.worker import WorkerProfile
 from app.models.zone import ZoneCluster
 
@@ -49,7 +52,7 @@ class FraudQueueItem(BaseModel):
 
 class WorkerFraudSignalsResponse(BaseModel):
     total_claim_count: int
-    avg_fraud_score: float
+    avg_fraud_score: float | None
     zone_claim_match_history: list[bool | None]
     enrollment_recency_score: float
     ring_registration_flag: bool
@@ -119,14 +122,46 @@ def score_claim_fraud(payload: FraudScoreRequest, db: Session = Depends(get_db))
     )
     enrollment_recency_score = compute_enrollment_recency_score(worker.enrollment_week)
 
+    activity_dropped = activity_7d_score < 0.5
+    disruption_was_forecast = (
+        db.query(TriggerEvent)
+        .filter(
+            TriggerEvent.zone_cluster_id == worker.zone_cluster_id,
+            TriggerEvent.status == "active",
+        )
+        .first()
+        is not None
+    )
+    baseline_floor_active = check_conditional_baseline_floor(
+        activity_dropped,
+        disruption_was_forecast,
+    )
+
     signal_breakdown = {
         "zone_claim_match": payload.zone_claim_match,
         "activity_7d_score": activity_7d_score,
         "enrollment_recency_score": enrollment_recency_score,
         "rain_paradox_active": rain_paradox_active,
+        "baseline_floor_active": baseline_floor_active,
         "claim_to_enrollment_days": payload.claim_to_enrollment_days,
         "event_claim_frequency": payload.event_claim_frequency,
     }
+
+    if routing == "hold":
+        db.add(
+            AuditEvent(
+                event_type="fraud_hold",
+                entity_id=payload.worker_id,
+                entity_type="worker",
+                payload={
+                    "fraud_score": fraud_score,
+                    "routing": routing,
+                    "signal_breakdown": signal_breakdown,
+                },
+                actor="system",
+            )
+        )
+        db.commit()
 
     return FraudScoreResponse(
         fraud_score=fraud_score,
@@ -193,7 +228,7 @@ def get_worker_fraud_signals(worker_id: UUID, db: Session = Depends(get_db)) -> 
     )
 
     total_claim_count = len(worker_claims)
-    avg_fraud_score = 0.0
+    avg_fraud_score = None
     if total_claim_count > 0:
         avg_fraud_score = float(
             sum(float(claim.fraud_score) for claim in worker_claims) / total_claim_count

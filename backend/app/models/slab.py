@@ -14,7 +14,7 @@ class SlabConfig(DeclarativeBase):
     platform = Column(String(10), nullable=False)
     deliveries_threshold = Column(Integer, nullable=False)
     bonus_amount = Column(Numeric(8, 2), nullable=False)
-    last_verified_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    last_verified_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
     is_active = Column(Boolean, nullable=False, default=True)
 
 

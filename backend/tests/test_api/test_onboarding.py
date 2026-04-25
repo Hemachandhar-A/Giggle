@@ -1,6 +1,8 @@
 import hashlib
 import sys
 import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +22,11 @@ from app.models.worker import WorkerProfile
 def _get_test_client() -> TestClient:
     app = FastAPI()
     app.include_router(router)
+
+    def _override_get_db():
+        yield _FakeRegistrationDB()
+
+    app.dependency_overrides[get_db] = _override_get_db
     return TestClient(app)
 
 
@@ -49,9 +56,17 @@ class _FakeQuery:
 class _FakeDB:
     def __init__(self, rows):
         self._rows = rows
+        self.audit_events = []
 
     def query(self, _model):
         return _FakeQuery(self._rows)
+
+    def add(self, obj):
+        if isinstance(obj, AuditEvent):
+            self.audit_events.append(obj)
+
+    def commit(self):
+        return None
 
 
 def _get_test_client_with_partner_rows(rows) -> TestClient:
@@ -73,6 +88,16 @@ class _FakeWorkerQuery:
 
     def filter_by(self, **kwargs):
         self._filters.update(kwargs)
+        return self
+
+    def filter(self, *criteria):
+        for criterion in criteria:
+            left = getattr(criterion, "left", None)
+            right = getattr(criterion, "right", None)
+            key = getattr(left, "key", None)
+            value = getattr(right, "value", None)
+            if key is not None:
+                self._filters[key] = value
         return self
 
     def first(self):
@@ -158,7 +183,8 @@ def _build_register_client(db: _FakeRegistrationDB) -> TestClient:
 
 
 def test_aadhaar_kyc_valid_returns_hash():
-    client = _get_test_client()
+    db = _FakeRegistrationDB()
+    client = _build_register_client(db)
 
     response = client.post(
         "/api/v1/onboarding/kyc/aadhaar",
@@ -169,6 +195,19 @@ def test_aadhaar_kyc_valid_returns_hash():
     body = response.json()
     assert body["verified"] is True
     assert body["aadhaar_hash"] == hashlib.sha256("123456789012".encode("utf-8")).hexdigest()
+
+
+def test_aadhaar_kyc_valid_writes_audit_event():
+    db = _FakeRegistrationDB()
+    client = _build_register_client(db)
+
+    response = client.post(
+        "/api/v1/onboarding/kyc/aadhaar",
+        json={"aadhaar_number": "123456789012", "otp": "123456"},
+    )
+
+    assert response.status_code == 200
+    assert any(event.event_type == "kyc_aadhaar_verified" for event in db.audit_events)
 
 
 def test_aadhaar_kyc_strips_spaces_before_validation_and_hashing():
@@ -307,6 +346,28 @@ def test_platform_verify_returns_verified_for_known_partner_id():
     assert body["partner_name"] == "Akash Verma"
 
 
+def test_platform_verify_valid_writes_audit_event():
+    rows = [_FakePartner("swiggy", "SWY-TEST-001", "Akash Verma")]
+    db = _FakeDB(rows)
+
+    app = FastAPI()
+    app.include_router(router)
+
+    def _override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_get_db
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/onboarding/platform/verify",
+        json={"platform": "swiggy", "partner_id": "SWY-TEST-001"},
+    )
+
+    assert response.status_code == 200
+    assert any(event.event_type == "platform_verified" for event in db.audit_events)
+
+
 def test_register_complete_valid_registration_returns_waiting(monkeypatch):
     monkeypatch.setattr("app.api.onboarding.get_flood_tier_for_pincode", lambda _pincode: "high")
     monkeypatch.setattr("app.api.onboarding.get_zone_cluster_for_pincode", lambda _pincode: 4)
@@ -334,6 +395,30 @@ def test_register_complete_valid_registration_returns_waiting(monkeypatch):
     assert body["days_until_eligible"] == 28
     assert body["weekly_premium_amount"] == 82.0
     assert body["coverage_start"] is None
+
+
+def test_register_accepts_hindi_language_preference(monkeypatch):
+    monkeypatch.setattr("app.api.onboarding.get_flood_tier_for_pincode", lambda _pincode: "high")
+    monkeypatch.setattr("app.api.onboarding.get_zone_cluster_for_pincode", lambda _pincode: 4)
+    monkeypatch.setattr("app.api.onboarding.httpx.Client", _FakePremiumClient)
+
+    db = _FakeRegistrationDB()
+    client = _build_register_client(db)
+
+    payload = {
+        "aadhaar_hash": "h" * 64,
+        "pan_hash": "i" * 64,
+        "upi_vpa": "worker@okaxis",
+        "platform": "zomato",
+        "partner_id": "ZOM-NEW-HI-001",
+        "pincode": 600042,
+        "device_fingerprint": "fp-device-hi",
+        "language_preference": "hi",
+    }
+
+    response = client.post("/api/v1/onboarding/register", json=payload)
+
+    assert response.status_code == 200
 
 
 def test_register_missing_device_fingerprint_returns_422(monkeypatch):
@@ -548,4 +633,91 @@ def test_register_writes_worker_registered_audit_event(monkeypatch):
     assert response.status_code == 200
     worker_registered_events = [event for event in db.audit_events if event.event_type == "worker_registered"]
     assert len(worker_registered_events) == 1
-    assert worker_registered_events[0].payload["zone_cluster_id"] == 9
+    assert worker_registered_events[0].event_data["zone_cluster_id"] == 9
+
+
+def test_register_duplicate_partner_id_returns_409(monkeypatch):
+    monkeypatch.setattr("app.api.onboarding.get_flood_tier_for_pincode", lambda _pincode: "high")
+    monkeypatch.setattr("app.api.onboarding.get_zone_cluster_for_pincode", lambda _pincode: 4)
+    monkeypatch.setattr("app.api.onboarding.httpx.Client", _FakePremiumClient)
+
+    db = _FakeRegistrationDB()
+    client = _build_register_client(db)
+
+    payload = {
+        "aadhaar_hash": "unique_aadhaar_001",
+        "pan_hash": "unique_pan_001",
+        "upi_vpa": "worker1@okaxis",
+        "platform": "zomato",
+        "partner_id": "ZOM-TEST-001",
+        "pincode": 600042,
+        "device_fingerprint": "device-001",
+        "language_preference": "ta",
+    }
+    response1 = client.post("/api/v1/onboarding/register", json=payload)
+    assert response1.status_code == 200
+
+    payload2 = {**payload}
+    payload2["aadhaar_hash"] = "different_aadhaar_002"
+    payload2["pan_hash"] = "different_pan_002"
+    payload2["device_fingerprint"] = "device-002"
+    response2 = client.post("/api/v1/onboarding/register", json=payload2)
+    assert response2.status_code == 409
+
+
+def test_onboarding_status_unknown_worker_returns_404():
+    db = _FakeRegistrationDB()
+    client = _build_register_client(db)
+
+    response = client.get(f"/api/v1/onboarding/status/{uuid.uuid4()}")
+
+    assert response.status_code == 404
+
+
+def test_onboarding_status_known_worker_enrolled_today_returns_waiting_window():
+    worker_id = uuid.uuid4()
+    policy_id = uuid.uuid4()
+    now_utc = datetime.now(timezone.utc)
+
+    worker = WorkerProfile(
+        id=worker_id,
+        aadhaar_hash="a" * 64,
+        pan_hash="b" * 64,
+        platform="zomato",
+        partner_id="ZOM-STATUS-001",
+        pincode=600042,
+        flood_hazard_tier="high",
+        zone_cluster_id=4,
+        upi_vpa="worker@okaxis",
+        device_fingerprint="fp-status",
+        language_preference="ta",
+        enrollment_date=now_utc,
+        enrollment_week=1,
+        is_active=True,
+    )
+    policy = Policy(
+        id=policy_id,
+        worker_id=worker_id,
+        status="waiting",
+        weekly_premium_amount=Decimal("75.00"),
+        coverage_week_number=1,
+        clean_claim_weeks=0,
+    )
+
+    db = _FakeRegistrationDB(worker_profiles=[worker])
+    db.policies = [policy]
+    client = _build_register_client(db)
+
+    response = client.get(f"/api/v1/onboarding/status/{worker_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["worker_id"] == str(worker_id)
+    assert body["registration_status"] == "complete"
+    assert body["policy_status"] == "waiting"
+    assert body["days_until_eligible"] == 28
+    assert body["is_eligible"] is False
+    assert body["flood_hazard_tier"] == "high"
+    assert body["zone_cluster_id"] == 4
+    assert body["platform"] == "zomato"
+    assert body["weekly_premium_amount"] == 75.0

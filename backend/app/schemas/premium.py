@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Union
 from uuid import UUID
 from datetime import datetime
 
@@ -17,7 +17,7 @@ class PremiumHistoryItem(BaseModel):
     week_number: int
     premium_amount: float
     model_used: str
-    shap_explanation_json: dict | None
+    shap_explanation_json: Optional[Union[dict, list]] = None
     calculated_at: datetime
 
 class PremiumHistoryResponse(BaseModel):

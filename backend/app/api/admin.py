@@ -571,57 +571,96 @@ def get_model_health(
             oldest_verified_utc = oldest_verified_utc.replace(tzinfo=timezone.utc)
         oldest_slab_verified_days = (now_utc - oldest_verified_utc).days
 
-    baseline_drift_sql = text(
+    weekly_income_sql = text(
         """
-        WITH zone_weekly_premium AS (
+        WITH worker_week_income AS (
             SELECT
                 wp.zone_cluster_id,
-                p.coverage_week_number,
-                AVG(p.weekly_premium_amount) AS avg_premium
-            FROM policies p
-            JOIN worker_profiles wp ON wp.id = p.worker_id
-            WHERE p.coverage_week_number IS NOT NULL
-            GROUP BY wp.zone_cluster_id, p.coverage_week_number
-        ),
-        recent_4_weeks AS (
-            SELECT
-                zone_cluster_id,
-                AVG(avg_premium) AS avg_recent
-            FROM zone_weekly_premium
-            WHERE coverage_week_number >= (SELECT MAX(coverage_week_number) - 3 FROM zone_weekly_premium)
-            GROUP BY zone_cluster_id
-        ),
-        older_12_weeks AS (
-            SELECT
-                zone_cluster_id,
-                AVG(avg_premium) AS avg_older
-            FROM zone_weekly_premium
-            WHERE coverage_week_number < (SELECT MAX(coverage_week_number) - 3 FROM zone_weekly_premium)
-            GROUP BY zone_cluster_id
+                EXTRACT(ISOYEAR FROM dh.recorded_at)::INT AS iso_year,
+                EXTRACT(WEEK FROM dh.recorded_at)::INT AS iso_week,
+                dh.worker_id,
+                SUM(COALESCE(dh.earnings_declared, 0)) AS worker_income_baseline_weekly
+            FROM delivery_history dh
+            JOIN worker_profiles wp ON wp.id = dh.worker_id
+            GROUP BY wp.zone_cluster_id, iso_year, iso_week, dh.worker_id
         )
         SELECT
-            CASE
-                WHEN COUNT(*) >= 1
-                AND AVG(
-                    CASE
-                        WHEN r.avg_recent < o.avg_older * 0.85 THEN 1
-                        ELSE 0
-                    END
-                ) > 0
-                THEN TRUE
-                ELSE FALSE
-            END AS has_drift
-        FROM recent_4_weeks r
-        FULL OUTER JOIN older_12_weeks o ON r.zone_cluster_id = o.zone_cluster_id
+            zone_cluster_id,
+            iso_year,
+            iso_week,
+            AVG(worker_income_baseline_weekly) AS avg_income_baseline_weekly
+        FROM worker_week_income
+        GROUP BY zone_cluster_id, iso_year, iso_week
+        ORDER BY iso_year DESC, iso_week DESC
         """
     )
+    weekly_rows = db.execute(weekly_income_sql).mappings().all()
 
-    drift_result = db.execute(baseline_drift_sql).mappings().all()
+    active_trigger_weeks_sql = text(
+        """
+        SELECT
+            zone_cluster_id,
+            EXTRACT(ISOYEAR FROM triggered_at)::INT AS iso_year,
+            EXTRACT(WEEK FROM triggered_at)::INT AS iso_week
+        FROM trigger_events
+        WHERE status = 'active'
+        """
+    )
+    active_trigger_rows = db.execute(active_trigger_weeks_sql).mappings().all()
+    active_trigger_keys = {
+        (int(row["zone_cluster_id"]), int(row["iso_year"]), int(row["iso_week"]))
+        for row in active_trigger_rows
+    }
+
+    ordered_weeks: list[tuple[int, int]] = []
+    for row in weekly_rows:
+        week_key = (int(row["iso_year"]), int(row["iso_week"]))
+        if week_key not in ordered_weeks:
+            ordered_weeks.append(week_key)
+
+    target_12_weeks = ordered_weeks[:12]
+    filtered_rows = [
+        row
+        for row in weekly_rows
+        if (int(row["iso_year"]), int(row["iso_week"])) in target_12_weeks
+        and (
+            int(row["zone_cluster_id"]),
+            int(row["iso_year"]),
+            int(row["iso_week"]),
+        )
+        not in active_trigger_keys
+    ]
+
+    remaining_weeks: list[tuple[int, int]] = []
+    for row in filtered_rows:
+        week_key = (int(row["iso_year"]), int(row["iso_week"]))
+        if week_key not in remaining_weeks:
+            remaining_weeks.append(week_key)
+
     baseline_drift_alert = None
-    if drift_result and len(drift_result) > 0:
-        first_row = drift_result[0]
-        if first_row.get("has_drift") is not None:
-            baseline_drift_alert = bool(first_row["has_drift"])
+    if len(remaining_weeks) >= 12:
+        selected_12_weeks = remaining_weeks[:12]
+        selected_4_weeks = selected_12_weeks[:4]
+
+        values_12w = [
+            float(row["avg_income_baseline_weekly"])
+            for row in filtered_rows
+            if (int(row["iso_year"]), int(row["iso_week"])) in selected_12_weeks
+        ]
+        values_4w = [
+            float(row["avg_income_baseline_weekly"])
+            for row in filtered_rows
+            if (int(row["iso_year"]), int(row["iso_week"])) in selected_4_weeks
+        ]
+
+        avg_12w = sum(values_12w) / len(values_12w) if values_12w else 0.0
+        avg_4w = sum(values_4w) / len(values_4w) if values_4w else 0.0
+
+        if avg_12w == 0:
+            baseline_drift_alert = False
+        else:
+            drop_pct = (avg_12w - avg_4w) / avg_12w
+            baseline_drift_alert = drop_pct > 0.15
 
     return ModelHealthResponse(
         premium_model_rmse=premium_model_rmse,

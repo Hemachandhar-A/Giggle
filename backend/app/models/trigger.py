@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 
 from app.core.database import DeclarativeBase
@@ -21,11 +21,21 @@ class TriggerEvent(DeclarativeBase):
     rain_signal_value = Column(Numeric(8, 2), nullable=True)
     aqi_signal_value = Column(Integer, nullable=True)
     temp_signal_value = Column(Numeric(5, 2), nullable=True)
+    rain_surge_active = Column(Boolean, nullable=False, default=False)
+    peak_multiplier_applied = Column(Boolean, nullable=False, default=False)
     platform_suspended = Column(Boolean, nullable=False, default=False)
     gis_flood_activated = Column(Boolean, nullable=False, default=False)
     corroboration_sources = Column(Integer, nullable=False)
     fast_path_used = Column(Boolean, nullable=False, default=False)
-    status = Column(String(20), nullable=False, default="active")
+    status = Column(
+        String(20),
+        CheckConstraint(
+            "status IN ('active','recovering','closed')",
+            name="ck_trigger_status",
+        ),
+        nullable=False,
+        default="active",
+    )
     closed_at = Column(DateTime(timezone=True), nullable=True)
 
 

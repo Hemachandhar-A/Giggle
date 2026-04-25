@@ -21,6 +21,14 @@ class AuditEvent(DeclarativeBase):
     actor = Column(String(50), nullable=False, default="system")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    @property
+    def event_data(self):
+        return self.payload
+
+    @event_data.setter
+    def event_data(self, value):
+        self.payload = value
+
 
 @event.listens_for(AuditEvent, "before_update")
 def prevent_audit_event_update(mapper, connection, target):

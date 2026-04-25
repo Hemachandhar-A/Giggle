@@ -175,7 +175,6 @@ def calculate_premium(
     tenure_discount_factor: float,
     historical_claim_rate_zone: float,
     language: str,
-    clean_claim_weeks: int = 0,
 ) -> dict:
     normalized_language = (language or "").strip().lower()
     if normalized_language in ("hi", "hindi"):
@@ -197,6 +196,9 @@ def calculate_premium(
         model_used = "glm"
         shap_top3 = []
     else:
+        # Option A: derive an approximation for SHAP "{weeks}" formatting
+        # without expanding the public function contract.
+        clean_claim_weeks = max(0, enrollment_week - 1)
         features = {
             "enrollment_week": enrollment_week,
             "flood_hazard_zone_tier": flood_hazard_zone_tier,

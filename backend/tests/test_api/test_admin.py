@@ -464,8 +464,8 @@ def test_slab_config_update_resets_verified_at_and_audits(monkeypatch):
     assert len(db._audit_events) == 1
     audit = db._audit_events[0]
     assert audit.event_type == "slab_config_updated"
-    assert audit.payload["old_bonus_amount"] == 50.0
-    assert audit.payload["new_bonus_amount"] == 75.0
+    assert audit.event_data["old_bonus_amount"] == 50.0
+    assert audit.event_data["new_bonus_amount"] == 75.0
 
     assert fake_slab.bonus_amount == 75.0
     assert fake_slab.last_verified_at > old_verified
@@ -500,6 +500,21 @@ def test_model_health_returns_expected_fields_and_types(monkeypatch):
         "stale_count": 0,
         "oldest_verified_at": old_date,
     }
+    weekly_rows = [
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 12, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 11, "avg_income_baseline_weekly": 990.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 10, "avg_income_baseline_weekly": 980.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 9, "avg_income_baseline_weekly": 970.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 8, "avg_income_baseline_weekly": 960.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 7, "avg_income_baseline_weekly": 950.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 6, "avg_income_baseline_weekly": 940.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 5, "avg_income_baseline_weekly": 930.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 4, "avg_income_baseline_weekly": 920.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 3, "avg_income_baseline_weekly": 910.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 2, "avg_income_baseline_weekly": 900.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 1, "avg_income_baseline_weekly": 890.0},
+    ]
+    active_trigger_rows = []
 
     class _FakeDBMultiQuery(_FakeDB):
         def __init__(self):
@@ -515,7 +530,9 @@ def test_model_health_returns_expected_fields_and_types(monkeypatch):
             elif self._call_order == 3:
                 return _FakeResult(row=slab_row)
             elif self._call_order == 4:
-                return _FakeResult(rows=[{"has_drift": False}])
+                return _FakeResult(rows=weekly_rows)
+            elif self._call_order == 5:
+                return _FakeResult(rows=active_trigger_rows)
             return _FakeResult(row={})
 
     db = _FakeDBMultiQuery()
@@ -569,6 +586,12 @@ def test_model_health_premium_model_rmse_null_if_fewer_than_50_claims(monkeypatc
         "stale_count": 0,
         "oldest_verified_at": None,
     }
+    weekly_rows = [
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 3, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 2, "avg_income_baseline_weekly": 980.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 1, "avg_income_baseline_weekly": 960.0},
+    ]
+    active_trigger_rows = []
 
     class _FakeDBMultiQuery(_FakeDB):
         def __init__(self):
@@ -584,7 +607,9 @@ def test_model_health_premium_model_rmse_null_if_fewer_than_50_claims(monkeypatc
             elif self._call_order == 3:
                 return _FakeResult(row=slab_row)
             elif self._call_order == 4:
-                return _FakeResult(rows=[{"has_drift": None}])
+                return _FakeResult(rows=weekly_rows)
+            elif self._call_order == 5:
+                return _FakeResult(rows=active_trigger_rows)
             return _FakeResult(row={})
 
     db = _FakeDBMultiQuery()
@@ -608,3 +633,101 @@ def test_model_health_premium_model_rmse_null_if_fewer_than_50_claims(monkeypatc
 
     assert body["premium_model_rmse"] is None
     assert body["fraud_precision"] is None
+
+
+def test_model_health_baseline_drift_alert_null_when_fewer_than_12_non_cascade_weeks(monkeypatch):
+    monkeypatch.setattr("app.api.admin.settings.admin_key", "secret-admin")
+
+    rmse_row = {"claim_count": 60, "mean_squared_error": 100.0}
+    fraud_row = {"total_resolved_held": 25, "confirmed_fraud_count": 5}
+    slab_row = {"stale_count": 0, "oldest_verified_at": None}
+    weekly_rows = [
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": week, "avg_income_baseline_weekly": 1000.0}
+        for week in range(10, 0, -1)
+    ]
+    active_trigger_rows = []
+
+    class _FakeDBMultiQuery(_FakeDB):
+        def __init__(self):
+            super().__init__()
+            self._call_order = 0
+
+        def execute(self, _statement, _params=None):
+            self._call_order += 1
+            if self._call_order == 1:
+                return _FakeResult(row=rmse_row)
+            if self._call_order == 2:
+                return _FakeResult(row=fraud_row)
+            if self._call_order == 3:
+                return _FakeResult(row=slab_row)
+            if self._call_order == 4:
+                return _FakeResult(rows=weekly_rows)
+            if self._call_order == 5:
+                return _FakeResult(rows=active_trigger_rows)
+            return _FakeResult(row={})
+
+    db = _FakeDBMultiQuery()
+    client = _build_client(db)
+
+    response = client.get(
+        "/api/v1/admin/model-health",
+        headers={"X-Admin-Key": "secret-admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["baseline_drift_alert"] is None
+
+
+def test_model_health_baseline_drift_alert_true_when_recent_4w_drop_exceeds_15_percent(monkeypatch):
+    monkeypatch.setattr("app.api.admin.settings.admin_key", "secret-admin")
+
+    rmse_row = {"claim_count": 60, "mean_squared_error": 100.0}
+    fraud_row = {"total_resolved_held": 25, "confirmed_fraud_count": 5}
+    slab_row = {"stale_count": 0, "oldest_verified_at": None}
+
+    # Most recent 4 weeks are 700, older 8 weeks are 1000 -> drop exceeds 15% vs 12-week mean.
+    weekly_rows = [
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 12, "avg_income_baseline_weekly": 700.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 11, "avg_income_baseline_weekly": 700.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 10, "avg_income_baseline_weekly": 700.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 9, "avg_income_baseline_weekly": 700.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 8, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 7, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 6, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 5, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 4, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 3, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 2, "avg_income_baseline_weekly": 1000.0},
+        {"zone_cluster_id": 1, "iso_year": 2026, "iso_week": 1, "avg_income_baseline_weekly": 1000.0},
+    ]
+    active_trigger_rows = []
+
+    class _FakeDBMultiQuery(_FakeDB):
+        def __init__(self):
+            super().__init__()
+            self._call_order = 0
+
+        def execute(self, _statement, _params=None):
+            self._call_order += 1
+            if self._call_order == 1:
+                return _FakeResult(row=rmse_row)
+            if self._call_order == 2:
+                return _FakeResult(row=fraud_row)
+            if self._call_order == 3:
+                return _FakeResult(row=slab_row)
+            if self._call_order == 4:
+                return _FakeResult(rows=weekly_rows)
+            if self._call_order == 5:
+                return _FakeResult(rows=active_trigger_rows)
+            return _FakeResult(row={})
+
+    db = _FakeDBMultiQuery()
+    client = _build_client(db)
+
+    response = client.get(
+        "/api/v1/admin/model-health",
+        headers={"X-Admin-Key": "secret-admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["baseline_drift_alert"] is True
