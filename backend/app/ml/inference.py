@@ -53,6 +53,19 @@ def _load_hindi_templates() -> dict:
 
 SHAP_HINDI_TEMPLATES = _load_hindi_templates()
 
+SHAP_ENGLISH_TEMPLATES = {
+    "flood_hazard_zone_tier": "High flood risk zone — elevated premium",
+    "season_flag": "Monsoon season — elevated risk period",
+    "open_meteo_7d_precip_probability": "Rain forecast in your zone this week",
+    "activity_consistency_score": "Clean delivery record — loyalty discount",
+    "historical_claim_rate_zone": "High claim history in your zone",
+    "zone_cluster_id": "Zone risk profile affects your premium",
+    "delivery_baseline_30d": "Based on last month's delivery count",
+    "income_baseline_weekly": "Weekly income baseline considered",
+    "tenure_discount_factor": "Long-term loyalty discount applied",
+    "platform": "Delivery platform factor applied",
+    "enrollment_week": "Enrollment week affects premium calculation",
+}
 
 def compute_activity_consistency_score(weekly_delivery_counts: list[float]) -> float:
     """
@@ -170,6 +183,8 @@ def calculate_premium(
     normalized_language = (language or "").strip().lower()
     if normalized_language in ("hi", "hindi"):
         template_map = SHAP_HINDI_TEMPLATES or SHAP_TAMIL_TEMPLATES
+    elif normalized_language in ("en", "english"):
+        template_map = SHAP_ENGLISH_TEMPLATES
     elif normalized_language in ("ta", "tamil"):
         template_map = SHAP_TAMIL_TEMPLATES
     else:

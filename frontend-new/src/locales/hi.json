@@ -1,0 +1,8 @@
+{
+  "nav": { "coverage":"कवरेज","workers":"कर्मचारी","triggers":"ट्रिगर और भुगतान","fraud":"धोखाधड़ी इंजन","admin":"व्यवस्थापक","logout":"लॉगआउट","demo":"डेमो" },
+  "dashboard": { "weekly_premium":"साप्ताहिक प्रीमियम","coverage_week":"कवरेज सप्ताह","active_policies":"सक्रिय पॉलिसी","live_disruptions":"लाइव व्यवधान","claims_this_week":"इस सप्ताह दावे","payouts_this_week":"इस सप्ताह भुगतान","upi_mandate":"UPI मैंडेट कवरेज" },
+  "policy": { "status_active":"सक्रिय","status_waiting":"प्रतीक्षा अवधि","status_suspended":"निलंबित","status_lapsed":"समाप्त","claim_eligible":"दावे के लिए पात्र","claim_not_eligible":"प्रतीक्षा अवधि: {{days}} दिन शेष","model":"मूल्य निर्धारण मॉडल","clean_weeks":"स्वच्छ सप्ताह","next_renewal":"अगला नवीनीकरण" },
+  "fraud": { "auto_approve":"स्वतः स्वीकृत","partial_review":"आंशिक समीक्षा","hold":"समीक्षाधीन","fraud_score":"धोखाधड़ी स्कोर","signals":"धोखाधड़ी संकेत","zone_match":"ज़ोन GPS मिलान","activity":"गतिविधि स्कोर (7दिन)","enrollment_days":"नामांकन दिन","claim_freq":"दावा आवृत्ति","cross_platform":"क्रॉस-प्लेटफ़ॉर्म","recency":"हाल का स्कोर","rain_paradox":"वर्षा विरोधाभास" },
+  "demo": { "trigger_event":"ट्रिगर इवेंट","select_zone":"ज़ोन चुनें","select_type":"व्यवधान प्रकार चुनें","fire_trigger":"ट्रिगर करें →","pipeline_running":"पाइपलाइन चल रही है...","disruption_detected":"व्यवधान का पता चला","claims_created":"दावे बनाए गए","fraud_running":"धोखाधड़ी इंजन चल रहा है","payout_sent":"UPI भुगतान भेजा गया","console_title":"पाइपलाइन कंसोल" },
+  "common": { "loading":"लोड हो रहा है...","error":"कुछ गलत हुआ","retry":"पुनः प्रयास करें","back":"वापस","refresh":"ताज़ा करें","inr":"₹","week":"सप्ताह","days":"दिन","na":"—" }
+}

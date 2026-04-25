@@ -1,0 +1,8 @@
+{
+  "nav": { "coverage":"Coverage","workers":"Workers","triggers":"Triggers & Payouts","fraud":"Fraud Engine","admin":"Admin","logout":"Logout","demo":"Demo" },
+  "dashboard": { "weekly_premium":"Weekly Premium","coverage_week":"Coverage Week","active_policies":"Active Policies","live_disruptions":"Live Disruptions","claims_this_week":"Claims This Week","payouts_this_week":"Payouts This Week","upi_mandate":"UPI Mandate Coverage" },
+  "policy": { "status_active":"Active","status_waiting":"Waiting Period","status_suspended":"Suspended","status_lapsed":"Lapsed","claim_eligible":"Eligible for Claims","claim_not_eligible":"Waiting Period: {{days}} days remaining","model":"Pricing Model","clean_weeks":"Clean Claim Weeks","next_renewal":"Next Renewal" },
+  "fraud": { "auto_approve":"Auto-Approved","partial_review":"Partial Review","hold":"Under Review","fraud_score":"Fraud Score","signals":"Fraud Signals","zone_match":"Zone GPS Match","activity":"Activity Score (7d)","enrollment_days":"Enrollment Days","claim_freq":"Claim Frequency","cross_platform":"Cross-Platform","recency":"Recency Score","rain_paradox":"Rain Paradox Flag" },
+  "demo": { "trigger_event":"Trigger Event","select_zone":"Select Zone","select_type":"Select Disruption Type","fire_trigger":"Fire Trigger →","pipeline_running":"Pipeline Running...","disruption_detected":"Disruption Detected","claims_created":"Claims Created","fraud_running":"Fraud Engine Running","payout_sent":"UPI Payout Sent","console_title":"Pipeline Console" },
+  "common": { "loading":"Loading...","error":"Something went wrong","retry":"Retry","back":"Back","refresh":"Refresh","inr":"₹","week":"Week","days":"days","na":"N/A" }
+}

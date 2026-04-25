@@ -20,6 +20,7 @@ class DashboardSummaryResponse(BaseModel):
     claims_this_week: int
     payouts_this_week: float
     avg_fraud_score_this_week: float | None
+    upi_mandate_coverage_pct: float
 
 
 class LossRatioItem(BaseModel):
@@ -131,12 +132,28 @@ def get_dashboard_summary(
 
     avg_fraud_score = row["avg_fraud_score_this_week"]
 
+    # UPI mandate coverage
+    mandate_sql = text(
+        """
+        SELECT
+            COUNT(*) AS total_workers,
+            COUNT(CASE WHEN upi_mandate_active = TRUE THEN 1 END) AS mandate_active
+        FROM worker_profiles
+        WHERE is_active = TRUE
+        """
+    )
+    mandate_row = db.execute(mandate_sql).mappings().one()
+    total_workers = int(mandate_row["total_workers"] or 0)
+    mandate_active = int(mandate_row["mandate_active"] or 0)
+    upi_mandate_coverage_pct = round((mandate_active / total_workers * 100), 1) if total_workers > 0 else 0.0
+
     return DashboardSummaryResponse(
         active_workers=int(row["active_workers"] or 0),
         active_triggers=int(row["active_triggers"] or 0),
         claims_this_week=int(row["claims_this_week"] or 0),
         payouts_this_week=float(row["payouts_this_week"] or 0.0),
         avg_fraud_score_this_week=(float(avg_fraud_score) if avg_fraud_score is not None else None),
+        upi_mandate_coverage_pct=upi_mandate_coverage_pct,
     )
 
 
@@ -352,6 +369,22 @@ def _get_open_meteo_daily_precipitation_probability(
 
     except Exception:
         return 0.0
+
+
+@router.put("/slab-config/verify", response_model=SlabConfigVerifyResponse)
+def mark_slab_config_verified(
+    _admin: None = Depends(_require_admin_key),
+    db: Session = Depends(get_db),
+) -> SlabConfigVerifyResponse:
+    """
+    Mark all slab config rows as verified now (sets last_verified_at = now()).
+    Returns the updated verification state.
+    """
+    now_utc = datetime.now(timezone.utc)
+    db.execute(text("UPDATE slab_config SET last_verified_at = :now"), {"now": now_utc})
+    db.commit()
+    # Return current state
+    return verify_slab_config(_admin=None, db=db)  # type: ignore[arg-type]
 
 
 @router.get("/slab-config/verify", response_model=SlabConfigVerifyResponse)
@@ -710,6 +743,14 @@ def get_enrollment_metrics(
         high_tier_fraction=high_tier_fraction,
     )
 
-
-
-
+@router.get("/workers")
+def get_workers(x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"), db: Session = Depends(get_db)):
+    _require_admin_key(x_admin_key)
+    res = db.execute(text("""
+        SELECT w.id, w.partner_id, w.platform, w.pincode, w.language_preference, 
+               w.is_active, p.status as policy_status
+        FROM worker_profiles w
+        LEFT JOIN policies p ON w.id = p.worker_id
+        ORDER BY w.created_at DESC
+    """)).mappings().all()
+    return {"workers": [dict(r) for r in res]}
