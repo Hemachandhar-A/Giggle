@@ -1,6 +1,13 @@
 {
-  "open_meteo_7d_precip_probability": "आपके क्षेत्र में बारिश का पूर्वानुमान (+₹{amount})",
-  "flood_hazard_zone_tier": "बाढ़ जोखिम क्षेत्र (+₹{amount})",
-  "activity_consistency_score": "{weeks} सप्ताह का स्वच्छ रिकॉर्ड (-₹{amount})",
-  "tenure_discount_factor": "वफादार ग्राहक छूट (-₹{amount})"
+  "flood_hazard_zone_tier": "बाढ़ जोखिम क्षेत्र आपके प्रीमियम को प्रभावित करता है",
+  "season_flag": "वर्तमान मानसून मौसम उच्च जोखिम दर्शाता है",
+  "open_meteo_7d_precip_probability": "अगले सप्ताह बारिश की संभावना है",
+  "activity_consistency_score": "आपकी डिलीवरी गतिविधि में बदलाव देखा गया है",
+  "historical_claim_rate_zone": "आपके क्षेत्र में दावों का इतिहास अधिक है",
+  "zone_cluster_id": "आपके क्षेत्र का जोखिम स्तर प्रीमियम को प्रभावित करता है",
+  "delivery_baseline_30d": "पिछले महीने की डिलीवरी गिनती को ध्यान में रखा गया है",
+  "income_baseline_weekly": "आपकी साप्ताहिक आय को ध्यान में रखा गया है",
+  "tenure_discount_factor": "लंबे समय के उपयोग पर छूट दी जा रही है",
+  "platform": "आपका डिलीवरी प्लेटफ़ॉर्म ध्यान में रखा गया है",
+  "enrollment_week": "नामांकन सप्ताह प्रीमियम को प्रभावित करता है"
 }

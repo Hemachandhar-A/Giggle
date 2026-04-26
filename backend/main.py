@@ -23,6 +23,7 @@ from app.api.payout import router as payout_router
 from app.api.policy import router as policy_router
 from app.api.premium import router as premium_router
 from app.api.trigger import router as trigger_router
+from app.api.worker import router as worker_router
 from app.core.config import settings
 from app.core.database import engine
 from app.fraud import scorer as fraud_scorer
@@ -54,6 +55,7 @@ app.include_router(debug_router)
 app.include_router(trigger_router)
 app.include_router(claims_router)
 app.include_router(payout_router)
+app.include_router(worker_router)
 
 
 @app.on_event("startup")

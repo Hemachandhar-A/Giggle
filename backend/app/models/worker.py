@@ -28,6 +28,7 @@ class WorkerProfile(DeclarativeBase):
     enrollment_week = Column(Integer, nullable=False, default=1)
     is_active = Column(Boolean, nullable=False, default=True)
     language_preference = Column(String(5), nullable=False, default="ta")
+    upi_mandate_active = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 

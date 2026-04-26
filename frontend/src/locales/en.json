@@ -1,0 +1,48 @@
+{
+  "nav": { "coverage":"Coverage","workers":"Workers","triggers":"Triggers & Payouts","admin":"Admin","logout":"Logout","predictor":"Predictor","claims":"Claims","payouts":"Payouts","profile":"My Profile","dashboard":"Dashboard","premium_history":"Premium History" },
+  "dashboard": { "weekly_premium":"Weekly Premium","coverage_week":"Coverage Week","active_policies":"Active Policies","live_disruptions":"Live Disruptions","claims_this_week":"Claims This Week","payouts_this_week":"Payouts This Week","upi_mandate":"UPI Mandate Coverage", "price_factors": "Why your price changed" },
+  "predictor": {
+    "title": "Payout Predictor",
+    "desc": "Estimate your potential payout for a hypothetical disruption event based on your real performance history.",
+    "label_event": "Disruption Event",
+    "label_deliveries": "Deliveries Completed Today",
+    "deliveries_help": "Number of orders delivered before the disruption started.",
+    "label_duration": "Disruption Duration (Hours)",
+    "btn_predict": "Predict Payout",
+    "btn_calculating": "Calculating...",
+    "placeholder": "Enter scenario details and click Predict Payout to see your personalized estimate.",
+    "breakdown_title": "Estimated Breakdown",
+    "base_loss": "Base Loss Compensation",
+    "slab_delta": "Slab Target Bonus Delta",
+    "monthly_proximity": "Monthly Proximity Protection",
+    "cascade_taper": "Cascade Taper",
+    "total_label": "Total Predicted Payout",
+    "capped_notice": "Capped at weekly baseline",
+    "event_rain": "Heavy Rain",
+    "event_heat": "Severe Heatwave",
+    "event_outage": "Platform Suspension"
+  },
+  "policy": { "status_active":"Active","status_waiting":"Waiting Period","status_suspended":"Suspended","status_lapsed":"Lapsed","claim_eligible":"Eligible for Claims","claim_not_eligible":"Waiting Period: {{days}} days remaining","model":"Pricing Model","clean_weeks":"Clean Claim Weeks","next_renewal":"Next Renewal" },
+  "fraud": { "auto_approve":"Auto-Approved","partial_review":"Partial Review","hold":"Under Review","fraud_score":"Fraud Score","signals":"Fraud Signals","zone_match":"Zone GPS Match","activity":"Activity Score (7d)","enrollment_days":"Enrollment Days","claim_freq":"Claim Frequency","cross_platform":"Cross-Platform","recency":"Recency Score","rain_paradox":"Rain Paradox Flag" },
+  "demo": { "trigger_event":"Trigger Event","select_zone":"Select Zone","select_type":"Select Disruption Type","fire_trigger":"Fire Trigger →","pipeline_running":"Pipeline Running...","disruption_detected":"Disruption Detected","claims_created":"Claims Created","fraud_running":"Fraud Engine Running","payout_sent":"UPI Payout Sent","console_title":"Pipeline Console" },
+  "claims": {
+    "title": "Claim History",
+    "empty": "No claims on record. Disruption events trigger automatic claims.",
+    "id": "Claim ID",
+    "amount": "Amount",
+    "fraud_score": "Fraud Score",
+    "routing": "Routing",
+    "status": "Status",
+    "filed": "Filed"
+  },
+  "payouts": {
+    "title": "Payout Ledger",
+    "empty": "No payouts yet.",
+    "amount": "Amount",
+    "status": "Status",
+    "razorpay_id": "Razorpay ID",
+    "initiated": "Initiated"
+  },
+  "common": { "loading":"Loading...","error":"Something went wrong","retry":"Retry","back":"Back","refresh":"Refresh","inr":"₹","week":"Week","days":"days","na":"N/A","live":"Live","degraded":"Degraded" }
+}
+

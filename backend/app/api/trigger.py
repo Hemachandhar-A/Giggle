@@ -20,7 +20,7 @@ from app.models.audit import AuditEvent
 from app.models.claims import Claim
 from app.models.trigger import TriggerEvent
 from app.models.zone import ZoneCluster
-from app.tasks.trigger_polling import initiate_zone_payouts, set_zone_suspended
+from app.tasks.trigger_polling import initiate_zone_payouts, set_zone_suspended, set_zone_resumed
 
 
 router = APIRouter(prefix="/api/v1/trigger", tags=["trigger"])
@@ -48,8 +48,11 @@ class ZoneTriggerStateResponse(BaseModel):
 
 class SimulateTriggerRequest(BaseModel):
     zone_cluster_id: int = Field(..., ge=1)
-    trigger_type: str = Field(...)
-    duration_hours: float = Field(..., gt=0)
+    rainfall_mm: float = Field(0.0, ge=0)
+    temp_c: float = Field(30.0)
+    aqi_value: int = Field(50, ge=0)
+    platform_suspended: bool = Field(False)
+    duration_hours: float = Field(1.0, gt=0)
 
 
 class SimulateTriggerResponse(BaseModel):
@@ -180,15 +183,17 @@ def simulate_trigger(
     payload: SimulateTriggerRequest,
     db: Session = Depends(get_db),
 ) -> SimulateTriggerResponse:
-    trigger_type = payload.trigger_type.strip()
-    if trigger_type not in ALLOWED_TRIGGER_TYPES:
-        raise HTTPException(status_code=422, detail="invalid trigger_type")
+    # ── Calculate real composite score ────────────────────────
+    from app.trigger.imd_classifier import classify_rainfall, classify_heat
+    from app.tasks.trigger_polling import _zone_tier_from_numeric
+    from app.trigger.composite_scorer import compute_composite_score
 
+    # Look up zone from DB — required for GIS tier
     zone = db.query(ZoneCluster).filter(ZoneCluster.id == payload.zone_cluster_id).first()
     if zone is None:
         raise HTTPException(status_code=404, detail="zone_cluster_id not found")
 
-    # ── For demo: expire any existing active trigger for this zone ─────────────
+    # Expire any existing active trigger for this zone first
     existing_active = (
         db.query(TriggerEvent)
         .filter(
@@ -201,20 +206,60 @@ def simulate_trigger(
         existing_active.status = "resolved"
         db.flush()
 
-    set_zone_suspended(payload.zone_cluster_id)
+    zone_tier = _zone_tier_from_numeric(getattr(zone, "flood_tier_numeric", 1))
+
+    rain_result = classify_rainfall(payload.rainfall_mm)
+    heat_result = classify_heat(payload.temp_c)
+    # AQI check: simulate 4-hour reading block above threshold if aqi_value > 300
+    aqi_readings = [float(payload.aqi_value)] * 4
+    from app.trigger.imd_classifier import check_aqi_trigger as _check_aqi
+    aqi_result = _check_aqi(aqi_readings)
+    aqi_triggered = bool(aqi_result.get("triggered", False))
+
+    gis_active = rain_result["triggered"] and zone_tier in {"high", "medium"}
+
+    composite = compute_composite_score(
+        platform_suspended=payload.platform_suspended,
+        rainfall_triggered=bool(rain_result["triggered"]),
+        gis_flood_active=gis_active,
+        aqi_triggered=aqi_triggered,
+        heat_triggered=bool(heat_result["triggered"]),
+        zone_flood_tier=zone_tier,
+    )
+
+    if composite["decision"] == "no_trigger":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Signals insufficient to corroborate a trigger. "
+                f"Composite score: {composite['composite_score']:.2f} "
+                f"(need ≥0.5 with 2+ sources, or >0.9 for fast-path). "
+                f"Active sources: {composite['source_categories']}"
+            )
+        )
+
+    if payload.platform_suspended:
+        set_zone_suspended(payload.zone_cluster_id)
+    else:
+        set_zone_resumed(payload.zone_cluster_id)
+
+    trigger_type = rain_result.get("category") or (
+        "severe_heatwave" if heat_result["triggered"] else
+        "severe_aqi" if aqi_triggered else "platform_suspension"
+    )
 
     trigger = TriggerEvent(
         zone_cluster_id=payload.zone_cluster_id,
         triggered_at=datetime.now(timezone.utc),
         trigger_type=trigger_type,
-        composite_score=Decimal("1.000"),
-        rain_signal_value=Decimal("64.5") if "rain" in trigger_type else Decimal("0"),
-        aqi_signal_value=301 if trigger_type == "severe_aqi" else None,
-        temp_signal_value=Decimal("45.0") if trigger_type == "severe_heatwave" else None,
-        platform_suspended=True,
-        gis_flood_activated="rain" in trigger_type,
-        corroboration_sources=3,
-        fast_path_used=True,
+        composite_score=Decimal(str(composite["composite_score"])),
+        rain_signal_value=Decimal(str(payload.rainfall_mm)),
+        aqi_signal_value=payload.aqi_value,
+        temp_signal_value=Decimal(str(payload.temp_c)),
+        platform_suspended=payload.platform_suspended,
+        gis_flood_activated=gis_active,
+        corroboration_sources=int(composite["sources_confirmed"]),
+        fast_path_used=bool(composite["fast_path_used"]),
         status="active",
     )
     db.add(trigger)

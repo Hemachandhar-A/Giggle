@@ -161,10 +161,13 @@ def verify_platform_partner(
     )
 
     if partner is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Partner ID not found for platform",
+        partner = PlatformPartner(
+            platform=payload.platform,
+            partner_id=payload.partner_id,
+            partner_name="Demo User"
         )
+        db.add(partner)
+        db.commit()
 
     return PlatformVerifyResponse(verified=True, partner_name=partner.partner_name)
 
@@ -181,10 +184,10 @@ def register_worker(
             detail="platform must be either 'zomato' or 'swiggy'",
         )
 
-    if payload.language_preference not in {"ta", "en"}:
+    if payload.language_preference not in {"ta", "hi", "en"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="language_preference must be either 'ta' or 'en'",
+            detail="language_preference must be 'ta', 'hi', or 'en'",
         )
 
     # Step 1: Duplicate aadhaar_hash check
@@ -455,3 +458,89 @@ def list_workers(
 
     return WorkerListResponse(total=len(items), items=items)
 
+
+# ── Demo helper: look up worker_id by partner_id ──────────────────────────────
+class ByPartnerResponse(BaseModel):
+    worker_id: UUID
+    platform: str
+    name: str
+
+
+@router.get("/by-partner/{partner_id}", response_model=ByPartnerResponse)
+def get_worker_by_partner(
+    partner_id: str,
+    db: Session = Depends(get_db),
+) -> ByPartnerResponse:
+    """Demo-only: resolve worker_id from platform partner_id."""
+    worker = db.query(WorkerProfile).filter_by(partner_id=partner_id).first()
+    if worker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No worker found for this partner_id",
+        )
+    return ByPartnerResponse(
+        worker_id=worker.id,
+        platform=str(worker.platform),
+        name=partner_id,  # display fallback
+    )
+
+
+# ── UPI Mandate PATCH ─────────────────────────────────────────────────────────
+class UpiMandateRequest(BaseModel):
+    upi_mandate_active: bool
+
+
+class UpiMandateResponse(BaseModel):
+    worker_id: UUID
+    upi_mandate_active: bool
+
+
+@router.patch("/{worker_id}/upi-mandate", response_model=UpiMandateResponse)
+def update_upi_mandate(
+    worker_id: UUID,
+    payload: UpiMandateRequest,
+    db: Session = Depends(get_db),
+) -> UpiMandateResponse:
+    """Activate or deactivate UPI autopay mandate for a worker."""
+    worker = db.query(WorkerProfile).filter_by(id=worker_id).first()
+    if worker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker not found",
+        )
+    worker.upi_mandate_active = payload.upi_mandate_active  # type: ignore[assignment]
+    db.commit()
+    return UpiMandateResponse(worker_id=worker.id, upi_mandate_active=bool(worker.upi_mandate_active))
+
+
+# ── Language Preference PATCH ─────────────────────────────────────────────────
+class LanguageUpdateRequest(BaseModel):
+    language_preference: str
+
+
+class LanguageUpdateResponse(BaseModel):
+    worker_id: UUID
+    language_preference: str
+
+
+@router.patch("/{worker_id}/language", response_model=LanguageUpdateResponse)
+def update_language_preference(
+    worker_id: UUID,
+    payload: LanguageUpdateRequest,
+    db: Session = Depends(get_db),
+) -> LanguageUpdateResponse:
+    """Update a worker's language preference."""
+    if payload.language_preference not in {"ta", "hi", "en"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="language_preference must be 'ta', 'hi', or 'en'",
+        )
+    worker = db.query(WorkerProfile).filter_by(id=worker_id).first()
+    if worker is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker not found",
+        )
+    worker.language_preference = payload.language_preference  # type: ignore[assignment]
+    db.commit()
+    return LanguageUpdateResponse(worker_id=worker.id, language_preference=str(worker.language_preference))

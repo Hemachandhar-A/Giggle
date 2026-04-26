@@ -18,7 +18,7 @@ class PremiumHistoryItem(BaseModel):
     week_number: int
     premium_amount: float
     model_used: str
-    shap_explanation_json: dict | None
+    shap_explanation_json: list | dict | None
     calculated_at: datetime
 
 class PremiumHistoryResponse(BaseModel):

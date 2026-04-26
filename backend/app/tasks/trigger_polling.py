@@ -65,7 +65,7 @@ except ImportError:
             return "auto_approve"
         if fraud_score <= 0.7:
             return "partial_review"
-        return "hold"
+        return "auto_reject"
 
 
 WAITING_PERIOD_DAYS = 28
@@ -360,7 +360,7 @@ def initiate_zone_payouts(
             claim_status = {
                 "auto_approve": "approved",
                 "partial_review": "partial",
-                "hold": "held",
+                "auto_reject": "rejected",
             }[fraud_routing]
 
             claim = Claim(
@@ -388,7 +388,7 @@ def initiate_zone_payouts(
             payout_id = None
             payout_error = None
 
-            if fraud_routing != "hold":
+            if fraud_routing != "auto_reject":
                 if fraud_routing == "partial_review":
                     payout_amount = round(payout_amount * 0.5, 2)
 

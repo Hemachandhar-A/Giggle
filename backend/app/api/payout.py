@@ -156,3 +156,28 @@ async def razorpay_payout_webhook(
         payout_id=str(payout_id),
         mapped_status=mapped_status,
     )
+
+class PredictPayoutRequest(BaseModel):
+    deliveries_completed_today: int = 0
+    disruption_duration_hours: int = 4
+    trigger_type: str = "heavy_rain"
+
+@router.post("/{worker_id}/predict")
+def predict_payout(worker_id: UUID, req: PredictPayoutRequest, db: Session = Depends(get_db)):
+    from app.payout.calculator import compute_payout
+    worker = db.query(WorkerProfile).filter(WorkerProfile.id == worker_id).first()
+    if worker is None:
+        raise HTTPException(status_code=404, detail="worker_id not found")
+    
+    # Run the calculator without saving to DB
+    from app.models.policy import Policy
+    policy = db.query(Policy).filter(Policy.worker_id == worker_id).first()
+    res = compute_payout(policy=policy,
+        worker=worker,
+        deliveries_completed_today=req.deliveries_completed_today,
+        disruption_duration_hours=req.disruption_duration_hours,
+        cascade_day=1,
+        trigger_type=req.trigger_type,
+        db=db
+    )
+    return res
