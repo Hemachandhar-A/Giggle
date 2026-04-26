@@ -3,7 +3,8 @@
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: 'Inter', sans-serif; background: #F8F6F1; color: #1a1a1a; }
+html { scroll-behavior: smooth; }
+body { font-family: 'Inter', sans-serif; background: #F4F7F4; color: #1a1a1a; }
 h1,h2,h3,.font-heading { font-family: 'Sora', sans-serif; }
 
 @keyframes fadeUp {
@@ -64,4 +65,49 @@ h1,h2,h3,.font-heading { font-family: 'Sora', sans-serif; }
   background:#0D2818;color:#22c55e;font-family:monospace;
   font-size:.73rem;padding:14px 16px;border-radius:12px;
   max-height:200px;overflow-y:auto;line-height:1.7;
+}
+@keyframes borderRotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.stat-card-animated {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card-animated::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 150%;
+  height: 150%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    transparent 70%,
+    #22c55e 100%
+  );
+  animation: borderRotate 3s linear infinite;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 0;
+}
+
+.stat-card-animated:hover::before {
+  opacity: 1;
+}
+
+.stat-card-animated-inner {
+  position: absolute;
+  inset: 1.5px;
+  z-index: 1;
+  border-radius: 15px;
+  background: #020617; /* primary-950 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }

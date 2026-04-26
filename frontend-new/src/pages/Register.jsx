@@ -32,15 +32,22 @@ export default function Register() {
   const zoneInfo = PINCODE_ZONE_MAP[parseInt(pincode)] || null
 
   const fillDemo = () => {
-    setPhone('9876543210')
-    setOtp('123456')
-    setAadhaar('111122223333')
-    setPan('ABCDE1234F')
-    setPlatform('zomato')
-    setPartnerId('ZMT' + Math.floor(Math.random() * 10000))
-    setPincode('600042')
-    setUpi('demo@upi')
-    setLang('en')
+    // Pick a random delivery worker persona each time
+    const personas = [
+      { phone: '9841023456', aadhaar: '234567891234', pan: 'BRTPS7823K', platform: 'zomato',  pincode: '600017', upi: 'ravi.zmt@okaxis',   lang: 'ta', idPrefix: 'ZMT' },
+      { phone: '8754301982', aadhaar: '987612345678', pan: 'MHPQR4512L', platform: 'swiggy',  pincode: '600040', upi: 'priya.swg@ybl',     lang: 'ta', idPrefix: 'SWG' },
+      { phone: '7904512387', aadhaar: '456789012345', pan: 'DLMNA3398G', platform: 'zomato',  pincode: '600045', upi: 'arif.dlv@paytm',    lang: 'hi', idPrefix: 'ZMT' },
+    ]
+    const p = personas[Math.floor(Math.random() * personas.length)]
+    setPhone(p.phone)
+    setOtp('482916')
+    setAadhaar(p.aadhaar)
+    setPan(p.pan)
+    setPlatform(p.platform)
+    setPartnerId(p.idPrefix + Math.floor(10000 + Math.random() * 90000))
+    setPincode(p.pincode)
+    setUpi(p.upi)
+    setLang(p.lang)
     setMandateApproved(true)
   }
 
@@ -124,7 +131,7 @@ export default function Register() {
 
         {/* Step 0 — Phone OTP */}
         {step === 0 && (
-          <div className="card">
+          <form onSubmit={(e) => { e.preventDefault(); step1() }} className="card">
             <h2 className="font-heading font-bold text-xl text-primary-900 mb-1">Verify Your Phone</h2>
             <p className="text-sm text-gray-400 mb-5">Demo mode: any 6-digit OTP works</p>
             <label className="label">Phone Number</label>
@@ -133,13 +140,13 @@ export default function Register() {
             <input className="input-field mb-2" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6} />
             <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-4">🔓 Demo mode — any 6-digit OTP accepted</p>
             {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
-            <button className="btn-primary w-full" onClick={step1}>Continue</button>
-          </div>
+            <button type="submit" className="btn-primary w-full">Continue</button>
+          </form>
         )}
 
         {/* Step 1 — KYC */}
         {step === 1 && (
-          <div className="card">
+          <form onSubmit={(e) => { e.preventDefault(); if(!loading && aadhaar && pan && partnerId) step2() }} className="card">
             <h2 className="font-heading font-bold text-xl text-primary-900 mb-5">Personal & Platform Details</h2>
             <label className="label">Aadhaar Number</label>
             <input className="input-field mb-3" value={aadhaar} onChange={e => setAadhaar(e.target.value)} placeholder="1234 5678 9012" />
@@ -160,17 +167,17 @@ export default function Register() {
             </select>
             {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
             <div className="flex gap-3">
-              <button className="btn-secondary flex-1" onClick={() => setStep(0)}>Back</button>
-              <button className="btn-primary flex-1" disabled={loading || !aadhaar || !pan || !partnerId} onClick={step2}>
+              <button type="button" className="btn-secondary flex-1" onClick={() => setStep(0)}>Back</button>
+              <button type="submit" className="btn-primary flex-1" disabled={loading || !aadhaar || !pan || !partnerId}>
                 {loading ? <span className="spinner" /> : 'Verify'}
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {/* Step 2 — Location & UPI */}
         {step === 2 && (
-          <div className="card">
+          <form onSubmit={(e) => { e.preventDefault(); if(!loading && upi && pincode) step3() }} className="card">
             <h2 className="font-heading font-bold text-xl text-primary-900 mb-5">Location & UPI Details</h2>
             <label className="label">Pincode</label>
             <input className="input-field mb-2" value={pincode} onChange={e => setPincode(e.target.value)} placeholder="600042" />
@@ -190,11 +197,11 @@ export default function Register() {
               <p className="font-semibold text-primary-900 text-sm mb-1">💳 UPI AutoPay Mandate</p>
               <p className="text-xs text-gray-600 mb-3">Allow Giggle to auto-deduct your weekly premium every Sunday</p>
               <div className="flex gap-2">
-                <button onClick={() => setMandateApproved(true)}
+                <button type="button" onClick={() => setMandateApproved(true)}
                   className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${mandateApproved ? 'bg-primary-900 text-white' : 'bg-white border border-primary-300 text-primary-900 hover:bg-primary-50'}`}>
                   Approve Mandate
                 </button>
-                <button onClick={() => setMandateApproved(false)}
+                <button type="button" onClick={() => setMandateApproved(false)}
                   className="text-xs text-gray-400 hover:text-gray-600 px-3">
                   Skip for now
                 </button>
@@ -204,17 +211,17 @@ export default function Register() {
 
             {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
             <div className="flex gap-3">
-              <button className="btn-secondary flex-1" onClick={() => setStep(1)}>Back</button>
-              <button className="btn-primary flex-1" disabled={loading || !upi || !pincode} onClick={step3}>
+              <button type="button" className="btn-secondary flex-1" onClick={() => setStep(1)}>Back</button>
+              <button type="submit" className="btn-primary flex-1" disabled={loading || !upi || !pincode}>
                 {loading ? <span className="spinner" /> : 'Continue'}
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {/* Step 3 — Review & Register */}
         {step === 3 && (
-          <div className="card">
+          <form onSubmit={(e) => { e.preventDefault(); if(!loading) register() }} className="card">
             <h2 className="font-heading font-bold text-xl text-primary-900 mb-5">Review & Enroll</h2>
             <div className="space-y-2 mb-5 text-sm">
               {[['Platform', platform.charAt(0).toUpperCase() + platform.slice(1)],
@@ -228,14 +235,27 @@ export default function Register() {
                 </div>
               ))}
             </div>
-            {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
+            {err && (
+              <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-100">
+                <p className="text-red-600 text-sm">
+                  {err.includes('pan_hash') 
+                    ? 'This identity (PAN) is already registered with an account.' 
+                    : err}
+                </p>
+                {err.includes('pan_hash') && (
+                  <Link to="/login" className="text-primary-700 text-xs font-bold hover:underline mt-1 inline-block">
+                    Already have an account? Sign In here →
+                  </Link>
+                )}
+              </div>
+            )}
             <div className="flex gap-3">
-              <button className="btn-secondary flex-1" onClick={() => setStep(2)}>Back</button>
-              <button className="btn-primary flex-1" disabled={loading} onClick={register}>
+              <button type="button" className="btn-secondary flex-1" onClick={() => setStep(2)}>Back</button>
+              <button type="submit" className="btn-primary flex-1" disabled={loading}>
                 {loading ? <span className="spinner" /> : 'Enroll Now'}
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {/* Step 4 — Success */}

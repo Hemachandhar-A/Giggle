@@ -9,10 +9,15 @@ import { ZONE_NAMES, STATUS_DISPLAY, TIER_DISPLAY, TRIGGER_DISPLAY } from '../co
 function inr(v) { return `₹${parseFloat(v || 0).toFixed(2)}` }
 function ago(dt) {
   if (!dt) return '—'
-  const s = Math.floor((Date.now() - new Date(dt)) / 1000)
+  const date = new Date(dt)
+  // If no timezone in string, assume it's UTC from backend
+  const utcDate = dt.toString().includes('Z') || dt.toString().includes('+') ? date : new Date(dt + 'Z')
+  const s = Math.floor((Date.now() - utcDate) / 1000)
+  if (s < 0) return 'Just now'
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  return new Date(dt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return utcDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
 }
 function badgeClass(status) {
   return { active:'badge-active',approved:'badge-approved',paid:'badge-paid',
@@ -150,7 +155,7 @@ export default function Dashboard() {
       )}
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-6 fade-up">
+      <div className="flex items-center gap-2 mb-6 overflow-x-auto no-scrollbar pb-1 fade-up">
         {[
           ['policy', t('nav.coverage', 'Coverage')],
           ['claims', t('nav.claims', 'Claims')],
@@ -159,7 +164,7 @@ export default function Dashboard() {
           ['predictor', t('nav.predictor', 'Payout Predictor')],
         ].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
               tab === id ? 'bg-primary-900 text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
             }`}>
             {label}
@@ -226,14 +231,14 @@ export default function Dashboard() {
       {/* Claims tab */}
       {tab === 'claims' && (
         <div className="card fade-up">
-          <h2 className="font-heading font-semibold text-primary-900 mb-4">Claim History</h2>
+          <h2 className="font-heading font-semibold text-primary-900 mb-4">{t('claims.title', 'Claim History')}</h2>
           {claims.length === 0 ? (
-            <p className="text-gray-400 text-sm py-8 text-center">No claims on record. Disruption events trigger automatic claims.</p>
+            <p className="text-gray-400 text-sm py-8 text-center">{t('claims.empty', 'No claims on record. Disruption events trigger automatic claims.')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="text-left border-b border-gray-100">
-                  {['Claim ID','Amount','Fraud Score','Routing','Status','Filed'].map(h => (
+                  {[t('claims.id', 'Claim ID'), t('claims.amount', 'Amount'), t('claims.fraud_score', 'Fraud Score'), t('claims.routing', 'Routing'), t('claims.status', 'Status'), t('claims.filed', 'Filed')].map(h => (
                     <th key={h} className="pb-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr></thead>
@@ -262,14 +267,14 @@ export default function Dashboard() {
       {/* Payouts tab */}
       {tab === 'payouts' && (
         <div className="card fade-up">
-          <h2 className="font-heading font-semibold text-primary-900 mb-4">Payout Ledger</h2>
+          <h2 className="font-heading font-semibold text-primary-900 mb-4">{t('payouts.title', 'Payout Ledger')}</h2>
           {payouts.length === 0 ? (
-            <p className="text-gray-400 text-sm py-8 text-center">No payouts yet.</p>
+            <p className="text-gray-400 text-sm py-8 text-center">{t('payouts.empty', 'No payouts yet.')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="text-left border-b border-gray-100">
-                  {['Amount','Status','Razorpay ID','Initiated'].map(h => (
+                  {[t('payouts.amount', 'Amount'), t('payouts.status', 'Status'), t('payouts.razorpay_id', 'Razorpay ID'), t('payouts.initiated', 'Initiated')].map(h => (
                     <th key={h} className="pb-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr></thead>
@@ -288,6 +293,7 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
 
       {/* Premium History */}
       {tab === 'premium' && (
@@ -311,56 +317,56 @@ export default function Dashboard() {
       {/* Payout Predictor */}
       {tab === 'predictor' && (
         <div className="card fade-up">
-          <h2 className="font-heading font-semibold text-primary-900 mb-2">Payout Predictor</h2>
-          <p className="text-sm text-gray-500 mb-6">Estimate your potential payout for a hypothetical disruption event based on your real performance history.</p>
+          <h2 className="font-heading font-semibold text-primary-900 mb-2">{t('predictor.title', 'Payout Predictor')}</h2>
+          <p className="text-sm text-gray-500 mb-6">{t('predictor.desc', 'Estimate your potential payout for a hypothetical disruption event based on your real performance history.')}</p>
           
           <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-4">
+            <form onSubmit={(e) => { e.preventDefault(); handlePredict() }} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Disruption Event</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('predictor.label_event', 'Disruption Event')}</label>
                 <select value={predType} onChange={e => setPredType(e.target.value)} className="w-full border-gray-300 rounded-xl p-2.5 text-sm bg-gray-50">
-                  <option value="heavy_rain">Heavy Rain</option>
-                  <option value="severe_heatwave">Severe Heatwave</option>
-                  <option value="platform_suspension">Platform Suspension</option>
+                  <option value="heavy_rain">{t('predictor.event_rain', 'Heavy Rain')}</option>
+                  <option value="severe_heatwave">{t('predictor.event_heat', 'Severe Heatwave')}</option>
+                  <option value="platform_suspension">{t('predictor.event_outage', 'Platform Suspension')}</option>
                 </select>
               </div>
               
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Deliveries Completed Today</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('predictor.label_deliveries', 'Deliveries Completed Today')}</label>
                 <input type="number" min="0" value={predDeliveries} onChange={e => setPredDeliveries(Number(e.target.value))} className="w-full border-gray-300 rounded-xl p-2.5 text-sm bg-gray-50" />
-                <p className="text-xs text-gray-400 mt-1">Number of orders delivered before the disruption started.</p>
+                <p className="text-xs text-gray-400 mt-1">{t('predictor.deliveries_help', 'Number of orders delivered before the disruption started.')}</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Disruption Duration (Hours)</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">{t('predictor.label_duration', 'Disruption Duration (Hours)')}</label>
                 <input type="number" min="1" max="24" value={predHours} onChange={e => setPredHours(Number(e.target.value))} className="w-full border-gray-300 rounded-xl p-2.5 text-sm bg-gray-50" />
               </div>
 
-              <button onClick={handlePredict} disabled={predLoading} className="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold transition-colors">
-                {predLoading ? 'Calculating...' : 'Predict Payout'}
+              <button type="submit" disabled={predLoading} className="w-full py-3 rounded-xl bg-primary-900 hover:bg-primary-700 text-white font-bold transition-all shadow-lg hover:shadow-primary-900/20">
+                {predLoading ? t('predictor.btn_calculating', 'Calculating...') : t('predictor.btn_predict', 'Predict Payout')}
               </button>
-            </div>
+            </form>
 
-            <div className="bg-surface border border-gray-100 rounded-2xl p-5 flex flex-col justify-center">
+            <div className="bg-surface border border-gray-100 rounded-2xl p-5 flex flex-col justify-center min-h-[300px]">
               {predResult ? (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">Estimated Breakdown</h3>
+                  <h3 className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">{t('predictor.breakdown_title', 'Estimated Breakdown')}</h3>
                   <div className="space-y-3 mb-6">
                     <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                      <span className="text-gray-600">Base Loss Compensation</span>
+                      <span className="text-gray-600">{t('predictor.base_loss', 'Base Loss Compensation')}</span>
                       <span className="font-medium text-gray-900">{inr(predResult.base_loss)}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                      <span className="text-gray-600">Slab Target Bonus Delta</span>
+                      <span className="text-gray-600">{t('predictor.slab_delta', 'Slab Target Bonus Delta')}</span>
                       <span className="font-medium text-gray-900">{inr(predResult.slab_delta)}</span>
                     </div>
                     <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
-                      <span className="text-gray-600">Monthly Proximity Protection</span>
+                      <span className="text-gray-600">{t('predictor.monthly_proximity', 'Monthly Proximity Protection')}</span>
                       <span className="font-medium text-gray-900">{inr(predResult.monthly_proximity)}</span>
                     </div>
                     {predResult.cascade_multiplier < 1 && (
                       <div className="flex justify-between items-center text-sm text-amber-600 border-b border-gray-100 pb-2">
-                        <span>Cascade Taper (Day {predResult.cascade_day})</span>
+                        <span>{t('predictor.cascade_taper', 'Cascade Taper')} (Day {predResult.cascade_day})</span>
                         <span className="font-medium">{(predResult.cascade_multiplier * 100).toFixed(0)}%</span>
                       </div>
                     )}
@@ -368,9 +374,9 @@ export default function Dashboard() {
                   <div className="pt-2 border-t-2 border-gray-800">
                     <div className="flex justify-between items-end">
                       <div>
-                        <span className="block text-xs font-semibold text-gray-500 uppercase">Total Predicted Payout</span>
+                        <span className="block text-[10px] font-semibold text-gray-500 uppercase">{t('predictor.total_label', 'Total Predicted Payout')}</span>
                         {predResult.total_payout >= predResult.weekly_baseline_cap && (
-                          <span className="text-xs text-amber-600 font-medium">Capped at weekly baseline</span>
+                          <span className="text-[10px] text-amber-600 font-medium">{t('predictor.capped_notice', 'Capped at weekly baseline')}</span>
                         )}
                       </div>
                       <span className="text-3xl font-bold text-green-600">{inr(predResult.total_payout)}</span>
@@ -380,13 +386,14 @@ export default function Dashboard() {
               ) : (
                 <div className="text-center text-gray-400 py-8">
                   <span className="text-4xl mb-3 block">📊</span>
-                  <p className="text-sm">Enter scenario details and click Predict Payout to see your personalized estimate.</p>
+                  <p className="text-sm">{t('predictor.placeholder', 'Enter scenario details and click Predict Payout to see your personalized estimate.')}</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       )}
+
     </Layout>
   )
 }

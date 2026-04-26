@@ -158,7 +158,7 @@ def get_claim_detail(
 def get_pending_claims(db: Session = Depends(get_db)) -> PendingClaimsResponse:
     claims = (
         db.query(Claim)
-        .filter((Claim.fraud_routing == "partial_review") | (Claim.status == "held"))
+        .filter(Claim.status == "partial")
         .order_by(desc(Claim.fraud_score))
         .all()
     )

@@ -586,6 +586,7 @@ def compute_payout(
         final_payout = total_before_cap
     final_payout = max(0.0, final_payout)
 
+
     breakdown_json = {
         "inputs": {
             "worker_id": str(worker.id),

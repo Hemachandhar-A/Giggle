@@ -85,4 +85,4 @@ def route_claim(fraud_score: float) -> str:
         return "auto_approve"
     if fraud_score <= 0.7:
         return "partial_review"
-    return "hold"
+    return "auto_reject"

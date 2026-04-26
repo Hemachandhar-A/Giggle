@@ -16,6 +16,7 @@ worker UPI accounts in under 60 seconds. Workers do nothing.
 ## Tech Stack
 
 - **Backend:** FastAPI + SQLAlchemy + Alembic
+- **Frontend:** React + Vite + Tailwind CSS + i18next (Tamil/English/Hindi)
 - **Database:** PostgreSQL (Supabase) with PostGIS
 - **Task Queue:** Celery + Redis (Upstash)
 - **ML Models:** LightGBM, statsmodels GLM, scikit-learn (Isolation Forest,
@@ -104,6 +105,17 @@ celery -A app.tasks.celery_app worker --loglevel=info
 ```bash
 celery -A app.tasks.celery_app beat --loglevel=info
 ```
+
+### 10. Set up and start Frontend (separate terminal)
+
+```bash
+cd ../frontend-new
+npm install
+cp .env.example .env  # Optional: defaults to http://localhost:8000
+npm run dev
+```
+
+Frontend available at: http://localhost:5173
 
 ## Running Tests
 

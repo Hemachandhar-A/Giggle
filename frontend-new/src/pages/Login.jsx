@@ -71,7 +71,7 @@ export default function Login() {
 
         {!isAdminMode ? (
           <>
-            <div className="card mb-4">
+            <form onSubmit={(e) => { e.preventDefault(); if (workerId) loginWorker(workerId) }} className="card mb-4">
               <h1 className="font-heading font-bold text-xl text-primary-900 mb-1">Worker Sign In</h1>
               <p className="text-sm text-gray-500 mb-5">Enter your Worker ID to access your dashboard</p>
               <label className="label">Worker ID</label>
@@ -82,11 +82,10 @@ export default function Login() {
               <input className="input-field mb-5" type="password" value={password}
                 onChange={e => setPassword(e.target.value)} placeholder="••••••" />
               {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
-              <button className="btn-primary w-full" disabled={loading || !workerId}
-                onClick={() => loginWorker(workerId)}>
+              <button type="submit" className="btn-primary w-full" disabled={loading || !workerId}>
                 {loading ? <span className="spinner" /> : 'Sign In'}
               </button>
-            </div>
+            </form>
 
             {/* Demo accounts */}
             <div className="card">
@@ -104,16 +103,16 @@ export default function Login() {
             </div>
           </>
         ) : (
-          <div className="card">
+          <form onSubmit={(e) => { e.preventDefault(); loginAdmin() }} className="card">
             <h1 className="font-heading font-bold text-xl text-primary-900 mb-5">Admin Login</h1>
             <label className="label">Username</label>
             <input className="input-field mb-3" value={adminUser} onChange={e => setAdminUser(e.target.value)} placeholder="admin" />
             <label className="label">Password</label>
             <input className="input-field mb-5" type="password" value={adminPass} onChange={e => setAdminPass(e.target.value)} placeholder="admin" />
             {err && <p className="text-red-500 text-sm mb-3">{err}</p>}
-            <button className="btn-primary w-full" onClick={loginAdmin}>Enter Admin Dashboard</button>
+            <button type="submit" className="btn-primary w-full">Enter Admin Dashboard</button>
             <p className="text-xs text-center text-gray-400 mt-3">Default: admin / admin</p>
-          </div>
+          </form>
         )}
 
         <p className="text-center text-sm text-gray-500 mt-6">

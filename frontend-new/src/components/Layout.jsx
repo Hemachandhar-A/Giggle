@@ -1,3 +1,8 @@
+/**
+ * User Dashboard Layout
+ * Used only for worker-facing pages: Dashboard, Profile, etc.
+ * Admin has its own AdminLayout.
+ */
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useState, useEffect } from 'react'
@@ -5,7 +10,7 @@ import { api } from '../config/api'
 import { getAuth, clearAuth, clearAdmin, setAuth } from '../hooks/useAuth'
 import i18n from 'i18next'
 
-export default function Layout({ children, dark = false }) {
+export default function Layout({ children }) {
   const { t } = useTranslation()
   const nav = useNavigate()
   const loc = useLocation()
@@ -30,59 +35,34 @@ export default function Layout({ children, dark = false }) {
     }
   }
 
-  const navLink = (to, label) => {
-    const active = loc.pathname === to
-    return (
-      <Link key={to} to={to}
-        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-          active
-            ? 'bg-white/20 text-white'
-            : 'text-white/60 hover:text-white hover:bg-white/10'
-        }`}>
-        {label}
-      </Link>
-    )
-  }
-
   const isOk = health?.database === 'ok' || health?.database === 'connected'
 
+  const name = auth?.label ? auth.label.split('—')[0].trim() : (auth?.platform?.toUpperCase() + ' Worker')
+  const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+
   return (
-    <div className={`min-h-screen ${dark ? 'bg-primary-900' : 'bg-surface'}`}>
-      {/* Nav */}
-      <nav className={`sticky top-0 z-50 border-b backdrop-blur-xl ${
-        dark ? 'bg-primary-900/95 border-white/10' : 'bg-primary-900 shadow-md border-primary-800'
-      }`}>
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-3">
+    <div className="min-h-screen bg-surface">
+      <nav className="sticky top-0 z-50 bg-primary-900 shadow-md border-b border-primary-800 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center gap-4">
+
           {/* Logo */}
-          <Link to={auth ? '/dashboard' : '/'} className="flex items-center gap-2 mr-4">
-            <span className="font-heading font-bold text-xl text-white tracking-wide">
-              Giggle
-            </span>
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <span className="font-heading font-bold text-xl text-white tracking-wide">Giggle</span>
           </Link>
 
-          {loc.pathname !== '/' && loc.pathname !== '/dashboard' && (
-            <button onClick={() => nav(-1)} className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/20 text-white/80 hover:bg-white/10 hover:text-white transition-colors">
-              ← Back
-            </button>
-          )}
-
-          {/* Nav links */}
-          <div className="flex items-center gap-1">
-            {auth && navLink('/dashboard', t('nav.coverage'))}
-          </div>
-
-          <div className="ml-auto flex items-center gap-4">
-            {/* Health dot */}
-            <span className="flex items-center gap-1.5 text-xs text-white/70 font-medium bg-white/5 px-2.5 py-1 rounded-full">
-              <span className={`w-2 h-2 rounded-full pulse-dot ${isOk ? 'bg-green-400' : health ? 'bg-red-400' : 'bg-gray-400'}`} />
-              {isOk ? 'Live' : health ? 'Degraded' : '...'}
+          {/* ── Left-side utility bar ── */}
+          <div className="flex items-center gap-2 md:gap-3 ml-0 md:ml-2">
+            {/* Live status */}
+            <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-white/70 font-medium bg-white/5 px-2 md:px-2.5 py-1 rounded-full border border-white/10">
+              <span className={`w-1.5 h-1.5 rounded-full ${isOk ? 'bg-green-400 pulse-dot' : health ? 'bg-red-400' : 'bg-gray-500'}`} />
+              <span className="hidden xs:inline">{isOk ? t('common.live', 'Live') : health ? t('common.degraded', 'Degraded') : '...'}</span>
             </span>
 
             {/* Lang switcher */}
-            <div className="flex gap-0.5 text-xs font-semibold rounded-lg overflow-hidden border border-white/20 bg-black/20">
-              {['ta','hi','en'].map(l => (
+            <div className="flex gap-0.5 text-[10px] md:text-xs font-semibold rounded-lg overflow-hidden border border-white/20 bg-black/20">
+              {['ta', 'hi', 'en'].map(l => (
                 <button key={l} onClick={() => changeLang(l)}
-                  className={`px-2 py-1 transition-colors ${lang === l
+                  className={`px-1.5 md:px-2.5 py-1 md:py-1.5 transition-colors ${lang === l
                     ? 'bg-white/20 text-white'
                     : 'text-white/50 hover:text-white hover:bg-white/10'
                   }`}>
@@ -90,24 +70,59 @@ export default function Layout({ children, dark = false }) {
                 </button>
               ))}
             </div>
-
-            {/* Admin link */}
-            <Link to="/admin" className="text-xs text-white/50 hover:text-white font-medium transition-colors">
-              {t('nav.admin', 'Admin')}
-            </Link>
-
-            {auth && (
-              <button onClick={onLogout}
-                className="text-xs font-bold px-3 py-1.5 rounded-lg bg-white text-primary-900 hover:bg-gray-100 transition-colors ml-2 shadow-sm">
-                {t('nav.logout', 'Sign Out')}
-              </button>
-            )}
           </div>
+
+          {/* Back button for sub-pages */}
+          {loc.pathname !== '/dashboard' && loc.pathname !== '/' && (
+            <button onClick={() => nav(-1)}
+              className="text-[10px] md:text-xs font-medium px-2 md:px-3 py-1 md:py-1.5 rounded-lg border border-white/20 text-white/70 hover:bg-white/10 hover:text-white transition-colors">
+              ← <span className="hidden xs:inline">{t('common.back', 'Back')}</span>
+            </button>
+          )}
+
+          {/* ── Right: user avatar only ── */}
+          {auth && (
+            <div className="relative group ml-auto">
+              <button className="flex items-center gap-1 md:gap-2 rounded-xl px-1.5 md:px-2 py-1 md:py-1.5 bg-white/10 hover:bg-white/20 transition-colors border border-white/20">
+                <span className="w-7 h-7 rounded-lg bg-white/25 flex items-center justify-center text-xs font-bold text-white">{initials}</span>
+                <span className="text-xs font-semibold text-white/90 hidden md:block max-w-[80px] truncate">{name.split(' ')[0]}</span>
+                <svg className="w-3 h-3 text-white/40" viewBox="0 0 12 12" fill="currentColor">
+                  <path d="M6 8L1 3h10L6 8z"/>
+                </svg>
+              </button>
+              {/* Dropdown */}
+              <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-xs font-bold text-gray-900 truncate">{name}</p>
+                  <p className="text-xs text-gray-400 capitalize">{auth.platform} · Rider</p>
+                </div>
+                <Link to="/profile" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    <circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6"/>
+                  </svg>
+                  {t('nav.profile', 'My Profile')}
+                </Link>
+                <Link to="/dashboard" className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <svg className="w-4 h-4 text-gray-400 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+                  </svg>
+                  {t('nav.dashboard', 'Dashboard')}
+                </Link>
+                <div className="border-t border-gray-100 mt-1 pt-1">
+                  <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                      <path d="M6 14H3a1 1 0 01-1-1V3a1 1 0 011-1h3M11 11l3-3-3-3M14 8H6"/>
+                    </svg>
+                    {t('nav.logout', 'Sign Out')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 
-      {/* Page content */}
-      <main className={`max-w-7xl mx-auto px-6 py-8 ${dark ? 'text-white' : ''}`}>
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {children}
       </main>
     </div>

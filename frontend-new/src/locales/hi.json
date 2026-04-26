@@ -1,8 +1,48 @@
 {
-  "nav": { "coverage":"कवरेज","workers":"कर्मचारी","triggers":"ट्रिगर और भुगतान","fraud":"धोखाधड़ी इंजन","admin":"व्यवस्थापक","logout":"लॉगआउट","demo":"डेमो" },
+  "nav": { "coverage":"कवरेज","workers":"कर्मचारी","triggers":"ट्रिगर और भुगतान","fraud":"धोखाधड़ी इंजन","admin":"व्यवस्थापक","logout":"लॉगआउट","demo":"डेमो","predictor":"भविष्यवक्ता","claims":"दावे","payouts":"भुगतान","profile":"मेरी प्रोफाइल","dashboard":"डैशबोर्ड","premium_history":"प्रीमियम इतिहास" },
   "dashboard": { "weekly_premium":"साप्ताहिक प्रीमियम","coverage_week":"कवरेज सप्ताह","active_policies":"सक्रिय पॉलिसी","live_disruptions":"लाइव व्यवधान","claims_this_week":"इस सप्ताह दावे","payouts_this_week":"इस सप्ताह भुगतान","upi_mandate":"UPI मैंडेट कवरेज" },
+  "predictor": {
+    "title": "भुगतान भविष्यवक्ता",
+    "desc": "अपने वास्तविक प्रदर्शन इतिहास के आधार पर एक काल्पनिक व्यवधान घटना के लिए अपने संभावित भुगतान का अनुमान लगाएं।",
+    "label_event": "व्यवधान घटना",
+    "label_deliveries": "आज पूरी की गई डिलीवरी",
+    "deliveries_help": "व्यवधान शुरू होने से पहले वितरित किए गए आदेशों की संख्या।",
+    "label_duration": "व्यवधान की अवधि (घंटे)",
+    "btn_predict": "भुगतान की भविष्यवाणी करें",
+    "btn_calculating": "गणना हो रही है...",
+    "placeholder": "परिदृश्य विवरण दर्ज करें और अपना व्यक्तिगत अनुमान देखने के लिए 'भुगतान की भविष्यवाणी करें' पर क्लिक करें।",
+    "breakdown_title": "अनुमानित विवरण",
+    "base_loss": "आधार हानि मुआवजा",
+    "slab_delta": "स्लैब लक्ष्य बोनस डेल्टा",
+    "monthly_proximity": "मासिक निकटता सुरक्षा",
+    "cascade_taper": "कैस्केड टेपर",
+    "total_label": "कुल अनुमानित भुगतान",
+    "capped_notice": "साप्ताहिक आधार रेखा पर छाया हुआ",
+    "event_rain": "भारी बारिश",
+    "event_heat": "गंभीर गर्मी की लहर",
+    "event_outage": "प्लेटफ़ॉर्म निलंबन"
+  },
   "policy": { "status_active":"सक्रिय","status_waiting":"प्रतीक्षा अवधि","status_suspended":"निलंबित","status_lapsed":"समाप्त","claim_eligible":"दावे के लिए पात्र","claim_not_eligible":"प्रतीक्षा अवधि: {{days}} दिन शेष","model":"मूल्य निर्धारण मॉडल","clean_weeks":"स्वच्छ सप्ताह","next_renewal":"अगला नवीनीकरण" },
   "fraud": { "auto_approve":"स्वतः स्वीकृत","partial_review":"आंशिक समीक्षा","hold":"समीक्षाधीन","fraud_score":"धोखाधड़ी स्कोर","signals":"धोखाधड़ी संकेत","zone_match":"ज़ोन GPS मिलान","activity":"गतिविधि स्कोर (7दिन)","enrollment_days":"नामांकन दिन","claim_freq":"दावा आवृत्ति","cross_platform":"क्रॉस-प्लेटफ़ॉर्म","recency":"हाल का स्कोर","rain_paradox":"वर्षा विरोधाभास" },
   "demo": { "trigger_event":"ट्रिगर इवेंट","select_zone":"ज़ोन चुनें","select_type":"व्यवधान प्रकार चुनें","fire_trigger":"ट्रिगर करें →","pipeline_running":"पाइपलाइन चल रही है...","disruption_detected":"व्यवधान का पता चला","claims_created":"दावे बनाए गए","fraud_running":"धोखाधड़ी इंजन चल रहा है","payout_sent":"UPI भुगतान भेजा गया","console_title":"पाइपलाइन कंसोल" },
-  "common": { "loading":"लोड हो रहा है...","error":"कुछ गलत हुआ","retry":"पुनः प्रयास करें","back":"वापस","refresh":"ताज़ा करें","inr":"₹","week":"सप्ताह","days":"दिन","na":"—" }
+  "claims": {
+    "title": "दावा इतिहास",
+    "empty": "कोई दावा रिकॉर्ड पर नहीं है। व्यवधान की घटनाएं स्वचालित दावों को ट्रिगर करती हैं।",
+    "id": "दावा आईडी",
+    "amount": "राशि",
+    "fraud_score": "धोखाधड़ी स्कोर",
+    "routing": "रूटिंग",
+    "status": "स्थिति",
+    "filed": "दर्ज किया गया"
+  },
+  "payouts": {
+    "title": "भुगतान लेजर",
+    "empty": "अभी तक कोई भुगतान नहीं हुआ।",
+    "amount": "राशि",
+    "status": "स्थिति",
+    "razorpay_id": "रेज़रपे आईडी",
+    "initiated": "शुरू किया गया"
+  },
+  "common": { "loading":"लोड हो रहा है...","error":"कुछ गलत हुआ","retry":"पुनः प्रयास करें","back":"वापस","refresh":"ताज़ा करें","inr":"₹","week":"सप्ताह","days":"दिन","na":"—","live":"लाइव","degraded":"कम" }
 }
+

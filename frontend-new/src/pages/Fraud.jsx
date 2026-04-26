@@ -145,7 +145,7 @@ export default function Fraud() {
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-3 pr-4 font-mono text-xs">{String(c.worker_id || c.claim_id).slice(-8).toUpperCase()}</td>
                       <td className="py-3 pr-4 text-gray-500 text-xs">
-                        {c.claim_date ? new Date(c.claim_date).toLocaleDateString('en-IN') : '—'}
+                        {c.claim_date ? new Date(c.claim_date + (c.claim_date.includes('Z') ? '' : 'Z')).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}
                       </td>
                       <td className="py-3 pr-4">{score_bar(c.fraud_score)}</td>
                       <td className="py-3 pr-4 text-xs">{routeLabel(c.fraud_routing)}</td>
