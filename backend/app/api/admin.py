@@ -493,7 +493,7 @@ def get_workers(x_admin_key: str | None = Header(default=None, alias="X-Admin-Ke
     _require_admin_key(x_admin_key)
     res = db.execute(text("""
         SELECT w.id, w.partner_id, w.platform, w.pincode, w.language_preference, 
-               w.is_active, p.status as policy_status
+               w.is_active, p.status as policy_status, w.zone_cluster_id
         FROM worker_profiles w
         LEFT JOIN policies p ON w.id = p.worker_id
         ORDER BY w.created_at DESC
