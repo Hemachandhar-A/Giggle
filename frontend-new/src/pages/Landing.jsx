@@ -44,13 +44,25 @@ export default function Landing() {
   const ok = health?.database === 'ok' || health?.database === 'connected'
 
   const events = activeTriggers.length > 0
-    ? activeTriggers.map(t => ({
-        zone: ZONE_NAMES[t.zone_cluster_id] || `Zone ${t.zone_cluster_id}`,
-        event: `${t.trigger_type?.replace(/_/g, ' ').replace(/\baqi\b/gi, 'AQI').replace(/\b\w/g, l => l.toUpperCase())} detected`,
-        payout: t.composite_score > 0.9 ? '✓ Fast Path' : '⏳ Scoring',
-        time: ago(t.triggered_at),
-        color: t.trigger_type?.includes('rain') ? 'bg-blue-500' : 'bg-amber-500'
-      }))
+    ? activeTriggers.slice(0, 5).map(t => {
+        const utcDate = new Date(t.triggered_at.toString().includes('Z') ? t.triggered_at : t.triggered_at + 'Z')
+        const ageSeconds = Math.floor((Date.now() - utcDate) / 1000)
+        
+        let payoutStatus = '✓ Approved'
+        if (ageSeconds < 45) {
+          payoutStatus = '⏳ Scoring'
+        } else if (t.composite_score > 0.9) {
+          payoutStatus = '✓ Auto-Approved'
+        }
+
+        return {
+          zone: ZONE_NAMES[t.zone_cluster_id] || `Zone ${t.zone_cluster_id}`,
+          event: `${t.trigger_type?.replace(/_/g, ' ').replace(/\baqi\b/gi, 'AQI').replace(/\b\w/g, l => l.toUpperCase())} detected`,
+          payout: payoutStatus,
+          time: ago(t.triggered_at),
+          color: t.trigger_type?.includes('rain') ? 'bg-blue-500' : 'bg-amber-500'
+        }
+      })
     : [
         { zone: 'Velachery', event: 'Heavy Rain trigger fired', payout: '₹312', time: '2m ago', color: 'bg-blue-500' },
         { zone: 'T. Nagar', event: 'Platform suspension detected', payout: '₹245', time: '8m ago', color: 'bg-amber-500' },
