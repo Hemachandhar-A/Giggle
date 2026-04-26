@@ -211,7 +211,7 @@ export default function Dashboard() {
           </div>
 
           <div className="card">
-            <h2 className="font-heading font-semibold text-primary-900 mb-4">Premium Factors (SHAP)</h2>
+            <h2 className="font-heading font-semibold text-primary-900 mb-4">{t('dashboard.price_factors')}</h2>
             {shapList.length > 0 ? (
               <div className="space-y-2">
                 {shapList.map((s, i) => (
@@ -222,7 +222,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-400 text-sm py-4">SHAP explanations not available yet.</p>
+              <p className="text-gray-400 text-sm py-4">No data available for this week.</p>
             )}
           </div>
         </div>
