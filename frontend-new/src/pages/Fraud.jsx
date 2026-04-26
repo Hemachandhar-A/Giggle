@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import Layout from '../components/Layout'
 import { api } from '../config/api'
 import { getAuth } from '../hooks/useAuth'
+import { STATUS_DISPLAY, ROUTING_DISPLAY } from '../config/constants'
 
 function score_bar(v) {
   const pct = Math.round((v || 0) * 100)
@@ -17,10 +18,6 @@ function score_bar(v) {
   )
 }
 
-function routeLabel(r) {
-  const m = { auto_approve:'✅ Auto-Approve', partial_review:'🟡 Partial Review', hold:'🔴 Hold' }
-  return m[r] || r
-}
 
 export default function Fraud() {
   const { t } = useTranslation()
@@ -148,13 +145,13 @@ export default function Fraud() {
                         {c.claim_date ? new Date(c.claim_date + (c.claim_date.includes('Z') ? '' : 'Z')).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}
                       </td>
                       <td className="py-3 pr-4">{score_bar(c.fraud_score)}</td>
-                      <td className="py-3 pr-4 text-xs">{routeLabel(c.fraud_routing)}</td>
+                      <td className="py-3 pr-4 text-xs">{ROUTING_DISPLAY[c.fraud_routing]?.en || c.fraud_routing}</td>
                       <td className="py-3 pr-4">
                         <span className={`badge ${c.zone_claim_match ? 'badge-approved' : c.zone_claim_match === false ? 'badge-held' : 'badge-waiting'}`}>
                           {c.zone_claim_match ? 'Yes' : c.zone_claim_match === false ? 'No' : '—'}
                         </span>
                       </td>
-                      <td className="py-3"><span className={`badge badge-${c.status}`}>{c.status}</span></td>
+                      <td className="py-3"><span className={`badge badge-${c.status}`}>{STATUS_DISPLAY[c.status]?.en || c.status}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -178,8 +175,8 @@ export default function Fraud() {
                   <div key={c.claim_id || c.id} className="flex items-center gap-4 py-3 border-b border-gray-50">
                     <div className="font-mono text-xs text-gray-400 w-16">{String(c.claim_id || c.id).slice(-8).toUpperCase()}</div>
                     <div className="flex-1">{score_bar(sc)}</div>
-                    <div className="text-xs">{routeLabel(c.fraud_routing)}</div>
-                    <span className={`badge badge-${c.status}`}>{c.status}</span>
+                    <div className="text-xs">{ROUTING_DISPLAY[c.fraud_routing]?.en || c.fraud_routing}</div>
+                    <span className={`badge badge-${c.status}`}>{STATUS_DISPLAY[c.status]?.en || c.status}</span>
                   </div>
                 )
               })}

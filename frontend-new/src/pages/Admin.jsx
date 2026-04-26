@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import AdminLayout from '../components/AdminLayout'
 import { api } from '../config/api'
-import { ZONE_NAMES } from '../config/constants'
+import { ZONE_NAMES, STATUS_DISPLAY, ROUTING_DISPLAY } from '../config/constants'
 
 function inr(v) { return `₹${parseFloat(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` }
 
@@ -329,9 +329,13 @@ export default function Admin() {
                         <td className="py-3 pr-4 text-gray-400 text-xs">{ZONE_NAMES[w.zone_cluster_id] || `Zone ${w.zone_cluster_id}`}</td>
                         <td className="py-3 pr-4 text-gray-400 uppercase text-xs">{w.language_preference}</td>
                         <td className="py-3 pr-4">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                            w.policy_status === 'active' ? 'bg-green-950 text-green-400 border border-green-900' : 'bg-gray-800 text-gray-500 border border-gray-700'
-                          }`}>{w.policy_status || 'unknown'}</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${
+                            w.policy_status === 'active' 
+                              ? 'bg-green-950 text-green-400 border-green-900' 
+                              : 'bg-gray-800 text-gray-500 border-gray-700'
+                          }`}>
+                            {STATUS_DISPLAY[w.policy_status]?.en || w.policy_status || 'unknown'}
+                          </span>
                         </td>
                       </tr>
                     ))}
@@ -361,7 +365,9 @@ export default function Admin() {
                     {triggerHist.map(t => (
                       <tr key={t.trigger_event_id} className="hover:bg-gray-800/30 transition-colors">
                         <td className="py-3 pr-4 text-gray-200 font-medium">{ZONE_NAMES[t.zone_cluster_id] || `Zone ${t.zone_cluster_id}`}</td>
-                        <td className="py-3 pr-4 text-gray-400 capitalize">{(t.trigger_type || '').replace(/_/g, ' ')}</td>
+                        <td className="py-3 pr-4 text-gray-400">
+                          {(t.trigger_type || '').replace(/_/g, ' ').replace(/\baqi\b/gi, 'AQI').replace(/\b\w/g, l => l.toUpperCase())}
+                        </td>
                         <td className="py-3 pr-4">
                           <span className={`font-bold text-sm ${parseFloat(t.composite_score) > 0.7 ? 'text-red-400' : 'text-amber-400'}`}>
                             {(parseFloat(t.composite_score || 0) * 100).toFixed(0)}%
@@ -370,9 +376,13 @@ export default function Admin() {
                         <td className="py-3 pr-4 text-gray-400">{t.sources_confirmed}</td>
                         <td className="py-3 pr-4 text-gray-300">{t.payout_count ?? '—'}</td>
                         <td className="py-3 pr-4">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                            t.status === 'active' ? 'bg-green-950 text-green-400 border border-green-900' : 'bg-gray-800 text-gray-500 border border-gray-700'
-                          }`}>{t.status}</span>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${
+                            t.status === 'active' 
+                              ? 'bg-green-950 text-green-400 border-green-900' 
+                              : 'bg-gray-800 text-gray-500 border-gray-700'
+                          }`}>
+                            {t.status?.charAt(0).toUpperCase() + t.status?.slice(1)}
+                          </span>
                         </td>
                         <td className="py-3 text-gray-600 text-xs font-mono">
                           {t.triggered_at ? new Date(t.triggered_at + (t.triggered_at.includes('Z') ? '' : 'Z')).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', timeZone: 'Asia/Kolkata' }) : '—'}
@@ -427,7 +437,9 @@ export default function Admin() {
                             {(sc * 100).toFixed(0)}%
                           </span>
                         </td>
-                        <td className="py-3 pr-4 text-xs text-gray-500 capitalize">{c.fraud_routing}</td>
+                        <td className="py-3 pr-4 text-xs text-gray-500">
+                          {ROUTING_DISPLAY[c.fraud_routing]?.en || c.fraud_routing}
+                        </td>
                         <td className="py-3 pr-4">
                           <span className={`text-xs font-semibold ${c.zone_claim_match ? 'text-green-400' : c.zone_claim_match === false ? 'text-red-400' : 'text-gray-500'}`}>
                             {c.zone_claim_match ? 'Matched' : c.zone_claim_match === false ? 'Mismatch' : 'Unknown'}

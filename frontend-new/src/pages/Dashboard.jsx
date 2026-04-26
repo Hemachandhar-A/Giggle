@@ -252,7 +252,7 @@ export default function Dashboard() {
                         <td className="py-3 pr-4 font-bold">{inr(c.total_payout_amount)}</td>
                         <td className={`py-3 pr-4 font-bold ${col}`}>{(sc * 100).toFixed(0)}%</td>
                         <td className="py-3 pr-4"><span className="badge badge-waiting text-xs">{c.fraud_routing}</span></td>
-                        <td className="py-3 pr-4"><span className={`badge ${badgeClass(c.status)}`}>{c.status}</span></td>
+                        <td className="py-3 pr-4"><span className={`badge ${badgeClass(c.status)}`}>{STATUS_DISPLAY[c.status]?.en || c.status}</span></td>
                         <td className="py-3 text-gray-400">{ago(c.claim_date)}</td>
                       </tr>
                     )
@@ -282,7 +282,7 @@ export default function Dashboard() {
                   {payouts.map(p => (
                     <tr key={p.payout_event_id || p.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                       <td className="py-3 pr-4 font-bold text-green-700">{inr(p.amount)}</td>
-                      <td className="py-3 pr-4"><span className={`badge ${badgeClass(p.status)}`}>{p.status}</span></td>
+                      <td className="py-3 pr-4"><span className={`badge ${badgeClass(p.status)}`}>{STATUS_DISPLAY[p.status]?.en || p.status}</span></td>
                       <td className="py-3 pr-4 font-mono text-xs text-gray-500">{p.razorpay_payout_id || '—'}</td>
                       <td className="py-3 text-gray-400">{ago(p.initiated_at)}</td>
                     </tr>

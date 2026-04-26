@@ -20,10 +20,25 @@ export const TIER_DISPLAY = {
 }
 
 export const STATUS_DISPLAY = {
-  waiting:   { en:'Waiting Period', ta:'காத்திருப்பு காலம்', hi:'प्रतीक्षा अवधि', color:'#6B7280' },
-  active:    { en:'Active',          ta:'செயலில்',             hi:'सक्रिय',          color:'#059669' },
-  suspended: { en:'Suspended',       ta:'நிறுத்தப்பட்டது',     hi:'निलंबित',          color:'#DC2626' },
-  lapsed:    { en:'Lapsed',          ta:'காலாவதியானது',        hi:'समाप्त',           color:'#9CA3AF' },
+  pending: { en: 'Pending', ta: 'நிலுவையில்', hi: 'लंबित', color: '#6B7280' },
+  approved: { en: 'Approved', ta: 'அங்கீகரிக்கப்பட்டது', hi: 'अनुमोदित', color: '#059669' },
+  partial: { en: 'Partial', ta: 'பகுதி', hi: 'आंशिक', color: '#D97706' },
+  held: { en: 'Under Review', ta: 'பரிசீலனையில்', hi: 'समीक्षाधीन', color: '#DC2626' },
+  rejected: { en: 'Rejected', ta: 'நிராகரிக்கப்பட்டது', hi: 'अस्वीकृत', color: '#DC2626' },
+  paid: { en: 'Paid', ta: 'செலுத்தப்பட்டது', hi: 'भुगतान किया गया', color: '#059669' },
+  processing: { en: 'Processing', ta: 'செயலாக்கத்தில்', hi: 'प्रसंस्करण', color: '#3B82F6' },
+  initiated: { en: 'Initiated', ta: 'தொடங்கப்பட்டது', hi: 'शुरू किया गया', color: '#6366F1' },
+  failed: { en: 'Failed', ta: 'தோல்வியுற்றது', hi: 'विफल', color: '#EF4444' },
+  active: { en: 'Active', ta: 'செயலில்', hi: 'सक्रिय', color: '#059669' },
+  waiting: { en: 'Waiting Period', ta: 'காத்திருப்பு காலம்', hi: 'प्रतीक्षा अवधि', color: '#6B7280' },
+  suspended: { en: 'Suspended', ta: 'நிறுத்தப்பட்டது', hi: 'निलंबित', color: '#DC2626' },
+  lapsed: { en: 'Lapsed', ta: 'காலாவதியானது', hi: 'समाप्त', color: '#9CA3AF' },
+}
+
+export const ROUTING_DISPLAY = {
+  auto_approve: { en: 'Auto-Approved', ta: 'தானியங்கி அங்கீகாரம்', hi: 'ऑटो-अनुमोदित' },
+  partial_review: { en: 'Partial Release', ta: 'பகுதி வெளியீடு', hi: 'आंशिक रिलीज' },
+  hold: { en: 'Under Review', ta: 'பரிசீலனையில்', hi: 'समीक्षाधीन' },
 }
 
 export const TRIGGER_DISPLAY = {
